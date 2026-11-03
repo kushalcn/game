@@ -1,0 +1,3869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Forest Explorer — 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=VT323&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;background:#050805;font-family:'Special Elite',serif;color:#dbe4d3;}
+#wrap{position:relative;width:100%;height:100vh;}
+canvas#three-canvas{display:block;touch-action:none;}
+
+#hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;pointer-events:none;font-family:'VT323',monospace;z-index:5;transition:opacity .25s ease, transform .25s ease;}
+#hud.hud-hidden{opacity:0;transform:translateY(-14px);}
+.hud-panel{background:rgba(8,14,8,0.72);border:1px solid #26361f;border-radius:6px;padding:8px 12px;min-width:160px;}
+#hudToggleHint{position:absolute;top:10px;right:16px;font-family:'VT323',monospace;font-size:13px;color:#8a988a;background:rgba(8,14,8,0.6);border:1px solid #26361f;border-radius:6px;padding:4px 8px;z-index:5;opacity:0;transition:opacity .25s ease;pointer-events:none;}
+#hudToggleHint.show{opacity:1;}
+#hudToggleHint b{color:#e2a33c;}
+.hud-row{display:flex;align-items:center;gap:8px;font-size:18px;margin-bottom:4px;}
+.hud-row:last-child{margin-bottom:0;}
+.val{color:#e2a33c;}
+.bar-wrap{width:120px;height:12px;background:#111;border:1px solid #333;border-radius:2px;overflow:hidden;}
+#healthFill{height:100%;width:100%;background:linear-gradient(90deg,#7ee27e,#3fae4a);transition:width .2s, background .3s;}
+#fireFill{height:100%;width:100%;background:linear-gradient(90deg,#e2a33c,#f2c469);transition:width .2s, background .3s;}
+#speedFill{height:100%;width:0%;background:linear-gradient(90deg,#6fb8e2,#9fe2e2);transition:width .12s linear, background .2s;}
+#cooldownFill{height:100%;width:100%;background:linear-gradient(90deg,#7ee27e,#3fae4a);transition:width .1s linear, background .2s;}
+#torchFill{height:100%;width:0%;background:linear-gradient(90deg,#f2c469,#fff2b0);transition:width .15s linear, background .2s;}
+#fireHint{display:none;position:absolute;bottom:88px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:18px;color:#f2c469;background:rgba(20,14,6,0.85);border:1px solid #4a3a1c;padding:6px 16px;border-radius:6px;z-index:5;}
+
+#chopHint{display:none;position:absolute;bottom:56px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:18px;color:#f2c469;background:rgba(20,14,6,0.85);border:1px solid #4a3a1c;padding:6px 16px;border-radius:6px;z-index:5;}
+#huntHint{display:none;position:absolute;bottom:120px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:18px;color:#e26a5a;background:rgba(20,14,6,0.85);border:1px solid #5a2a1c;padding:6px 16px;border-radius:6px;z-index:5;}
+#giantWarning{display:none;position:absolute;top:90px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:26px;letter-spacing:2px;color:#ff3020;background:rgba(20,4,4,0.82);border:2px solid #ff3020;padding:10px 24px;border-radius:8px;z-index:7;text-shadow:0 0 10px rgba(255,48,32,0.9);text-align:center;}
+#giantHealthBar{display:none;position:absolute;top:14px;left:50%;transform:translateX(-50%);width:min(86vw,560px);z-index:9;text-align:center;}
+#giantHealthBar.show{display:block;}
+.ghb-label{font-family:'VT323',monospace;font-size:24px;letter-spacing:6px;color:#ff3020;text-shadow:0 0 12px rgba(255,48,32,0.9);margin-bottom:4px;}
+.ghb-bar-wrap{width:100%;height:26px;background:#1a0605;border:3px solid #5a0f0a;border-radius:6px;overflow:hidden;box-shadow:0 0 14px rgba(255,48,32,0.5);}
+#ghbFill{height:100%;width:100%;background:linear-gradient(90deg,#ff3020,#ff7a3a);transition:width .25s ease, background .3s;}
+#toast{position:absolute;top:80px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:22px;color:#f2e6c9;background:rgba(20,14,6,0.85);border:1px solid #4a3a1c;padding:8px 20px;border-radius:6px;z-index:6;opacity:0;transition:opacity .3s;pointer-events:none;text-align:center;}
+
+#giantCutscene{position:absolute;inset:0;z-index:25;display:none;pointer-events:none;}
+#giantCutscene.show{display:block;}
+#giantCutscene .bar{position:absolute;left:0;right:0;height:15vh;background:#000;opacity:0;transition:opacity .6s ease;}
+#giantCutscene .bar.top{top:0;}
+#giantCutscene .bar.bottom{bottom:0;}
+#giantCutscene.show .bar{opacity:1;}
+#giantCutscene .vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center, rgba(120,0,0,0) 38%, rgba(60,0,0,0.6) 100%);opacity:0;transition:opacity 1s ease;}
+#giantCutscene.show .vignette{opacity:1;}
+#giantCutscene .cs-text{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0;transition:opacity 1.1s ease;width:90%;}
+#giantCutscene.show .cs-text{opacity:1;}
+#giantCutscene h2{font-family:'VT323',monospace;font-size:clamp(28px,6vw,48px);letter-spacing:6px;color:#ff3020;text-shadow:0 0 24px rgba(255,48,32,0.85);animation:giantPulse 1.2s ease-in-out infinite;}
+#giantCutscene p{font-family:'VT323',monospace;font-size:clamp(15px,2.6vw,20px);color:#dbc4c0;margin-top:10px;letter-spacing:1px;}
+@keyframes giantPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+#keysHint{position:absolute;bottom:10px;left:16px;font-family:'VT323',monospace;font-size:14px;color:#8a988a;background:rgba(8,14,8,0.6);border:1px solid #26361f;border-radius:6px;padding:6px 10px;z-index:5;line-height:1.6;}
+body.touch-enabled #keysHint{display:none;}
+#keysHint b{color:#e2a33c;}
+#toast.show{opacity:1;}
+
+#mapOverlay{position:absolute;inset:0;background:rgba(3,6,3,0.88);display:none;align-items:center;justify-content:center;z-index:20;flex-direction:column;gap:10px;}
+#mapOverlay.show{display:flex;}
+#mapCanvas{background:#0e1a0d;border:4px solid #3a2a1c;border-radius:8px;max-width:92vw;height:auto;}
+.map-title{font-family:'VT323',monospace;font-size:24px;letter-spacing:4px;color:#e2a33c;}
+.map-hint{font-family:'VT323',monospace;font-size:16px;color:#8a988a;}
+.map-legend{font-family:'VT323',monospace;font-size:15px;color:#dbe4d3;display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:92vw;}
+.map-legend span{display:flex;align-items:center;gap:5px;}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;}
+
+#loadingMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#050805;color:#8fd18a;font-family:'VT323',monospace;font-size:22px;z-index:40;}
+
+#pauseOverlay{position:absolute;inset:0;background:rgba(3,6,3,0.88);display:none;align-items:center;justify-content:center;z-index:22;flex-direction:column;gap:8px;text-align:center;cursor:pointer;}
+#pauseOverlay.show{display:flex;}
+#pauseOverlay h1{font-family:'VT323',monospace;font-size:44px;letter-spacing:8px;color:#f2e6c9;text-shadow:0 0 18px rgba(226,163,60,0.5);}
+#pauseOverlay p{font-family:'VT323',monospace;font-size:18px;color:#8a988a;}
+
+#deviceSelectOverlay{position:absolute;inset:0;background:rgba(2,4,2,0.97);display:flex;align-items:center;justify-content:center;z-index:65;padding:20px;text-align:center;}
+#deviceSelectOverlay.hide{display:none;}
+#deviceSelectPanel{max-width:480px;display:flex;flex-direction:column;gap:16px;align-items:center;}
+#deviceSelectBtns{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
+.deviceBtn{font-family:'VT323',monospace;font-size:22px;padding:16px 26px;border-radius:8px;border:1px solid #4a3a1c;background:#26361f;color:#eaf2e0;cursor:pointer;min-width:190px;}
+.deviceBtn:active{background:#3a4c2c;}
+.deviceBtn .dbtn-sub{display:block;font-size:14px;color:#9fb090;margin-top:4px;}
+
+#winOverlay{position:absolute;inset:0;background:rgba(3,6,3,0.92);display:none;align-items:center;justify-content:center;z-index:50;flex-direction:column;gap:14px;text-align:center;padding:20px;}
+#winOverlay.show{display:flex;}
+#winOverlay h1{font-family:'VT323',monospace;font-size:44px;letter-spacing:6px;color:#f2c469;text-shadow:0 0 18px rgba(226,163,60,0.6);}
+#winOverlay p{font-family:'VT323',monospace;font-size:20px;color:#dbe4d3;max-width:480px;}
+#winOverlay button{font-family:'VT323',monospace;font-size:18px;padding:10px 22px;border-radius:6px;border:1px solid #4a3a1c;background:#26361f;color:#eaf2e0;cursor:pointer;}
+
+#deathOverlay{position:absolute;inset:0;background:rgba(8,2,2,0.94);display:none;align-items:center;justify-content:center;z-index:51;flex-direction:column;gap:14px;text-align:center;padding:20px;}
+#deathOverlay.show{display:flex;}
+#deathOverlay h1{font-family:'VT323',monospace;font-size:48px;letter-spacing:6px;color:#e2361a;text-shadow:0 0 20px rgba(226,54,26,0.7);}
+#deathOverlay p{font-family:'VT323',monospace;font-size:20px;color:#dbc4c0;max-width:480px;}
+#deathOverlay button{font-family:'VT323',monospace;font-size:18px;padding:10px 22px;border-radius:6px;border:1px solid #5a2a1c;background:#3a1c16;color:#eaf2e0;cursor:pointer;}
+
+#keyHint{display:none;position:absolute;bottom:152px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:18px;color:#f2e07a;background:rgba(20,14,6,0.85);border:1px solid #6a5a1c;padding:6px 16px;border-radius:6px;z-index:5;}
+#doorHint{display:none;position:absolute;bottom:184px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:18px;color:#9fd6ff;background:rgba(10,16,20,0.85);border:1px solid #2c4a5a;padding:6px 16px;border-radius:6px;z-index:5;}
+#anvilHint{display:none;position:absolute;bottom:216px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:18px;color:#e2a33c;background:rgba(20,14,6,0.85);border:1px solid #6a5a1c;padding:6px 16px;border-radius:6px;z-index:5;}
+#anvilUpgradePanel{display:none;position:absolute;bottom:200px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;color:#c9c2a6;background:rgba(16,12,8,0.94);border:2px solid #6a5a1c;border-radius:8px;padding:10px 18px;z-index:5;box-shadow:0 0 20px rgba(0,0,0,0.6);}
+#anvilUpgradePanel.show{display:block;}
+#anvilUpgradePanel .aup-title{text-align:center;font-size:20px;letter-spacing:3px;color:#e2a33c;margin-bottom:6px;}
+#anvilUpgradePanel table{border-collapse:collapse;font-size:16px;}
+#anvilUpgradePanel td{padding:2px 10px;white-space:nowrap;}
+#anvilUpgradePanel td.aup-key{color:#f2c469;font-weight:bold;text-align:center;}
+#anvilUpgradePanel td.aup-status{text-align:right;}
+#friendHint{display:none;position:absolute;bottom:248px;left:50%;transform:translateX(-50%);font-family:'VT323',monospace;font-size:18px;color:#c9a0ff;background:rgba(20,14,26,0.88);border:1px solid #5a3a7a;padding:6px 16px;border-radius:6px;z-index:5;text-align:center;}
+
+/* ---------- touch controls ---------- */
+#touchControls{display:none;position:absolute;inset:0;z-index:10;pointer-events:none;}
+body.touch-enabled #touchControls{display:block;}
+#joyBase{position:absolute;left:26px;bottom:26px;width:120px;height:120px;border-radius:50%;background:rgba(20,30,18,0.45);border:2px solid rgba(150,180,140,0.4);pointer-events:auto;touch-action:none;}
+#joyKnob{position:absolute;left:35px;top:35px;width:50px;height:50px;border-radius:50%;background:rgba(150,180,140,0.55);border:2px solid rgba(220,230,210,0.6);}
+#touchButtons{position:absolute;right:20px;bottom:26px;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:auto;}
+.tbtn{width:64px;height:64px;border-radius:50%;background:rgba(20,30,18,0.55);border:2px solid rgba(150,180,140,0.5);color:#eaf2e0;font-family:'VT323',monospace;font-size:14px;display:flex;align-items:center;justify-content:center;text-align:center;pointer-events:auto;touch-action:none;user-select:none;}
+#chopBtn{width:78px;height:78px;background:rgba(90,60,20,0.55);border-color:rgba(226,163,60,0.5);font-size:15px;}
+#huntBtn{width:78px;height:78px;background:rgba(90,25,20,0.55);border-color:rgba(226,90,60,0.5);font-size:14px;}
+#gunBtn{width:78px;height:78px;background:rgba(30,50,90,0.55);border-color:rgba(90,150,226,0.5);font-size:14px;}
+#targetBtn{width:78px;height:78px;background:rgba(80,30,90,0.55);border-color:rgba(200,90,226,0.5);font-size:13px;}
+.tbtn-row{display:flex;gap:8px;}
+.tbtn-small{width:52px;height:52px;font-size:13px;}
+
+/* ---------- settings ---------- */
+#settingsBtn{position:absolute;top:12px;right:12px;z-index:8;width:38px;height:38px;border-radius:50%;background:rgba(8,14,8,0.72);border:1px solid #26361f;color:#dbe4d3;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:auto;}
+#settingsOverlay{position:absolute;inset:0;background:rgba(3,6,3,0.88);display:none;align-items:center;justify-content:center;z-index:30;}
+#settingsOverlay.show{display:flex;}
+#settingsPanel{background:#0e1409;border:2px solid #3a2a1c;border-radius:10px;padding:20px 24px;width:min(92vw,480px);max-height:84vh;overflow-y:auto;font-family:'VT323',monospace;color:#dbe4d3;}
+#settingsPanel h2{color:#e2a33c;font-size:24px;letter-spacing:2px;margin-bottom:14px;text-align:center;}
+#settingsPanel input[type=password],#settingsPanel input[type=number]{width:100%;background:#1a1f14;border:1px solid #3a4a2c;color:#eaf2e0;font-family:'VT323',monospace;font-size:17px;padding:6px 8px;border-radius:4px;}
+.settingsRow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;font-size:16px;}
+.settingsRow label{flex:1;}
+.settingsRow input{width:100px;text-align:right;}
+.settingsBtnRow{display:flex;gap:10px;margin-top:14px;}
+.settingsBtnRow button{flex:1;padding:9px;border-radius:6px;border:1px solid #4a3a1c;background:#26361f;color:#eaf2e0;font-family:'VT323',monospace;font-size:17px;cursor:pointer;}
+.settingsBtnRow button.secondary{background:#2a1c1c;border-color:#5a2a1c;}
+#settingsErr{color:#e2695a;font-size:15px;text-align:center;min-height:18px;margin-bottom:6px;}
+.settingsErr-shared{color:#e2695a;font-size:15px;text-align:center;min-height:18px;margin-bottom:6px;}
+.settingsSection{color:#f2c469;font-size:16px;letter-spacing:2px;margin:16px 0 8px;padding-top:8px;border-top:1px solid #2a3a1c;text-align:center;}
+.settingsSection:first-of-type{margin-top:4px;padding-top:0;border-top:none;}
+
+#welcomeOverlay{position:absolute;inset:0;background:rgba(2,4,2,0.95);display:flex;align-items:center;justify-content:center;z-index:60;flex-direction:column;padding:20px;text-align:center;}
+#welcomeOverlay.hide{display:none;}
+#welcomePanel{max-width:560px;width:min(92vw,560px);max-height:88vh;overflow-y:auto;background:#0e1409;border:2px solid #3a2a1c;border-radius:12px;padding:26px 24px;}
+.welcome-brand{font-family:'VT323',monospace;font-size:20px;letter-spacing:5px;color:#e2c469;text-shadow:0 0 16px rgba(226,163,60,0.6);margin-bottom:6px;}
+.welcome-title{font-family:'VT323',monospace;font-size:34px;letter-spacing:3px;color:#eaf2e0;margin-bottom:16px;}
+.welcome-sub{font-family:'VT323',monospace;font-size:18px;color:#8fd18a;letter-spacing:1px;margin-bottom:18px;}
+.welcome-section{text-align:left;font-family:'VT323',monospace;font-size:16px;color:#dbe4d3;margin-bottom:14px;line-height:1.5;}
+.welcome-section h3{color:#e2a33c;font-size:17px;letter-spacing:1px;margin-bottom:5px;}
+.welcome-section ul{padding-left:18px;}
+#welcomeStartBtn{margin-top:6px;font-family:'VT323',monospace;font-size:20px;padding:10px 26px;border-radius:6px;border:1px solid #4a3a1c;background:#26361f;color:#eaf2e0;cursor:pointer;letter-spacing:2px;}
+
+#storyCutscene,#deathCutscene{position:absolute;inset:0;z-index:26;display:none;background:#040302;overflow:hidden;}
+#storyCutscene.show,#deathCutscene.show{display:block;}
+.story-scene{position:absolute;inset:0;opacity:0;transition:opacity .9s ease;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px;}
+.story-scene.active{opacity:1;}
+.story-scene svg{width:min(84vw,460px);height:auto;overflow:visible;}
+.story-caption{margin-top:20px;font-family:'VT323',monospace;font-size:21px;color:#dbc4c0;text-align:center;max-width:86vw;letter-spacing:1px;line-height:1.5;}
+.story-caption.final{color:#e2a33c;font-size:24px;}
+.story-caption.warn{color:#ff5030;font-size:23px;text-shadow:0 0 14px rgba(255,48,32,0.7);animation:giantPulse 1.2s ease-in-out infinite;}
+#deathCutscene .story-caption{color:#e2a0a0;}
+.story-scene.active .arm-reach{animation:reachArm 1.6s ease forwards;}
+.story-scene.active .friend-shrink{animation:shrinkFriend 1.6s ease forwards;}
+.story-scene.active .drag-group{animation:dragAway 1.8s ease forwards;}
+.story-scene.active .cage-bars{animation:lockBars 1s ease forwards;}
+.story-scene.active .lunge-giant{animation:lungeIn 1.1s ease-in-out infinite alternate;}
+.story-scene.active .jaw-top{animation:closeJaw 1.9s ease forwards;transform-origin:50% 100%;}
+.story-scene.active .jaw-bottom{animation:closeJawLower 1.9s ease forwards;transform-origin:50% 0%;}
+.story-scene.active .victim{animation:fadeVictim 1.9s ease forwards;}
+.story-scene.active .eye-glow{animation:eyeGlow 1s ease-in-out infinite alternate;}
+.story-scene.active .flee-run{animation:fleeRun 1.6s ease-in-out infinite;}
+.story-scene.active .drag-to-den{animation:dragToDen 1.8s ease forwards;}
+.story-scene.active .den-fade{animation:denFade 1.8s ease forwards;}
+#deathCutscene.show{animation:deathFlash 2.2s ease;}
+@keyframes reachArm{0%{transform:translateX(0) rotate(0deg);}100%{transform:translateX(-38px) rotate(-14deg);}}
+@keyframes shrinkFriend{0%{transform:scale(1);opacity:1;}100%{transform:scale(0.55) translateX(-30px);opacity:0.4;}}
+@keyframes dragAway{0%{transform:translateX(0);}100%{transform:translateX(-70px);}}
+@keyframes lockBars{0%{transform:translateY(-60px);opacity:0;}100%{transform:translateY(0);opacity:1;}}
+@keyframes lungeIn{0%{transform:scale(0.85) translateY(0);}100%{transform:scale(1.15) translateY(10px);}}
+@keyframes closeJaw{0%{transform:rotate(0deg);}100%{transform:rotate(-38deg);}}
+@keyframes closeJawLower{0%{transform:rotate(0deg);}100%{transform:rotate(38deg);}}
+@keyframes fadeVictim{0%{opacity:1;transform:scale(1);}100%{opacity:0;transform:scale(0.4);}}
+@keyframes deathFlash{0%,100%{background:#040302;}45%{background:#1a0402;}55%{background:#2a0503;}}
+@keyframes eyeGlow{0%{opacity:.55;transform:scale(1);}100%{opacity:1;transform:scale(1.35);}}
+@keyframes fleeRun{0%,100%{transform:translateX(0) translateY(0);}50%{transform:translateX(-10px) translateY(-3px);}}
+@keyframes dragToDen{0%{transform:translateX(0) scale(1);opacity:1;}100%{transform:translateX(120px) scale(0.6);opacity:0.5;}}
+@keyframes denFade{0%{opacity:1;}100%{opacity:0.15;}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="three-canvas"></canvas>
+  <div id="loadingMsg">loading the forest...</div>
+
+  <div id="deviceSelectOverlay">
+    <div id="deviceSelectPanel">
+      <div class="welcome-title">How are you playing?</div>
+      <div class="welcome-sub">Some phones load this page as if it were a desktop, so the on-screen joystick and buttons don't show up on their own. Tell us your device and we'll set the controls up right.</div>
+      <div id="deviceSelectBtns">
+        <button class="deviceBtn" id="chooseMobileBtn">📱 Mobile / Tablet<span class="dbtn-sub">touch joystick &amp; buttons</span></button>
+        <button class="deviceBtn" id="chooseComputerBtn">💻 Computer<span class="dbtn-sub">keyboard &amp; mouse</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="welcomeOverlay">
+    <div id="welcomePanel">
+      <div class="welcome-brand">WELCOME TO GOLDEN DRAGON CASINO</div>
+      <div class="welcome-title">Welcome to 5 Nights in the Forest</div>
+      <div class="welcome-sub">Survive the nights. Free your friends. Escape the forest.</div>
+
+      <div class="welcome-section">
+        <h3>Goal</h3>
+        <p>Two friends were dragged off and caged in separate camps deep in the forest — one guarded by 5 monsters, the other by 10. Kill every guard at a camp, then walk up and press E to free the friend there — they'll wait safe back at your campfire. Free both, find the key hidden in the monster's den, and bring it all back to the exit door to escape together.</p>
+      </div>
+
+      <div class="welcome-section">
+        <h3>How to play</h3>
+        <ul>
+          <li><b>WASD</b> — move around · <b>SHIFT</b> — sprint</li>
+          <li><b>E</b> — chop trees for wood, open doors, fix the anvil</li>
+          <li><b>R</b> — spear animals (health) or monsters (bones) · <b>G</b> — shoot with the gun (uses ammo)</li>
+          <li><b>X</b> — target: long-range aimed shot at the nearest animal/monster, even far away (needs gun + ammo)</li>
+          <li><b>F</b> — feed the campfire with wood to keep it burning</li>
+          <li><b>P</b> — plant a sapling · <b>1 / 2</b> — craft gun / ammo</li>
+          <li><b>3 / 4</b> — upgrade your axe / spear at the anvil · <b>5 / 6</b> — upgrade Friend 1 / Friend 2</li>
+          <li><b>T</b> — switch the torch on/off · <b>7</b> — build a torch battery at the anvil (15 Scrap, 5 Bones)</li>
+          <li><b>V</b> — change camera view · <b>M</b> — open the map · <b>Z</b> — pause</li>
+          <li>On touch devices, use the on-screen joystick and buttons.</li>
+        </ul>
+      </div>
+
+      <div class="welcome-section">
+        <h3>Stay alive</h3>
+        <p>Your fire keeps a safe boundary around you — let it run out and the dark gets dangerous. At night, monsters roam and a giant may awaken, so keep an eye on your health, fire, and stamina bars in the top corner. Every 3rd, 5th, 7th, 9th... night is a War Night — a tough zombie appears, so be ready to fight or help a freed friend take it down. Build a torch battery at the anvil and switch on the torch (T) when things get crowded — every monster except the giant will bolt away from the light. One battery only holds 30 seconds of charge, then it's spent, so use it wisely.</p>
+      </div>
+
+      <button id="welcomeStartBtn">Start</button>
+    </div>
+  </div>
+
+  <div id="settingsBtn" title="Settings">⚙</div>
+
+  <div id="hud">
+    <div class="hud-panel">
+      <div class="hud-row">❤ Health <div class="bar-wrap"><div id="healthFill"></div></div></div>
+      <div class="hud-row">📅 Day <span class="val" id="dayCount">1</span></div>
+      <div class="hud-row">⏳ <span id="phaseLabel">Day</span> ends in <span class="val" id="phaseTimer">0:00</span></div>
+      <div class="hud-row">🔥 Fire <div class="bar-wrap"><div id="fireFill"></div></div></div>
+      <div class="hud-row">💨 Stamina <div class="bar-wrap"><div id="speedFill"></div></div></div>
+      <div class="hud-row">⚔️ Attack <div class="bar-wrap"><div id="cooldownFill"></div></div></div>
+      <div class="hud-row">🔦 Torch <div class="bar-wrap"><div id="torchFill"></div></div></div>
+      <div class="hud-row">🛡️ Boundary <span class="val" id="boundaryStatus">SAFE</span></div>
+    </div>
+    <div class="hud-panel">
+      <div class="hud-row">🪓 Wood <span class="val" id="woodCount">0</span></div>
+      <div class="hud-row">🌱 Saplings <span class="val" id="saplingCount">0</span></div>
+      <div class="hud-row">🎒 Scrap <span class="val" id="scrapCount">0</span></div>
+      <div class="hud-row">🦴 Bones <span class="val" id="boneCount">0</span></div>
+      <div class="hud-row">🐇 Rabbit Foot <span class="val" id="rabbitFootCount">0</span></div>
+      <div class="hud-row">🐑 Sheep Wool <span class="val" id="sheepWoolCount">0</span></div>
+      <div class="hud-row">🦌 Deer Skin <span class="val" id="deerSkinCount">0</span></div>
+      <div class="hud-row">🗝️ Key <span class="val" id="keyStatus">not found</span></div>
+      <div class="hud-row">🤝 Friends freed <span class="val" id="friendsFreedCount">0</span>/2</div>
+      <div class="hud-row">⚒️ Anvil Pieces <span class="val" id="anvilPieceCount">0</span>/3</div>
+      <div class="hud-row">🔫 Gun <span class="val" id="gunStatus">none</span></div>
+      <div class="hud-row">🔹 Ammo <span class="val" id="ammoCount">0</span></div>
+      <div class="hud-row">🪓 Axe <span class="val" id="axeStatus">basic</span></div>
+      <div class="hud-row">🗡️ Spear <span class="val" id="spearStatus">basic</span></div>
+      <div class="hud-row">🔋 Torch Batteries <span class="val" id="torchBatteryCount">0</span></div>
+      <div class="hud-row">👤 Friend 1 <span class="val" id="friend1Status">not freed</span></div>
+      <div class="hud-row">👤 Friend 2 <span class="val" id="friend2Status">not freed</span></div>
+      <div class="hud-row" style="font-size:15px;color:#8a988a;">🐾 Animals seen <span class="val" id="animalCount">0</span></div>
+      <div class="hud-row" style="font-size:15px;color:#8a988a;">🔱 Animals hunted <span class="val" id="huntedCount">0</span></div>
+    </div>
+  </div>
+  <div id="hudToggleHint">Press <b>B</b> to show HUD</div>
+
+  <div id="chopHint">Press E to chop the tree (+2 Wood, +1 Sapling)</div>
+  <div id="huntHint">Press R to spear, G to shoot, or X to target far ones (animal for health, monster for bones)</div>
+  <div id="giantWarning">THE GIANT IS HUNTING YOU — RUN FOR THE FIRE!</div>
+  <div id="giantHealthBar">
+    <div class="ghb-label">THE GIANT</div>
+    <div class="ghb-bar-wrap"><div id="ghbFill"></div></div>
+  </div>
+  <div id="fireHint">Press F to feed the fire</div>
+  <div id="keyHint">Walk over the key to pick it up</div>
+  <div id="doorHint">Press E to unlock the door and escape</div>
+  <div id="anvilHint">Press E to fix the anvil</div>
+  <div id="anvilUpgradePanel">
+    <div class="aup-title">⚒️ ANVIL — UPGRADE STATION</div>
+    <table>
+      <tr><td class="aup-key">1</td><td>Gun</td><td>10 Scrap</td><td class="aup-status" id="aupGun"></td></tr>
+      <tr><td class="aup-key">2</td><td>Ammo</td><td>2 Scrap</td><td class="aup-status" id="aupAmmo"></td></tr>
+      <tr><td class="aup-key">3</td><td>Axe</td><td>2 Wood, 2 Scrap, 4 Bones</td><td class="aup-status" id="aupAxe"></td></tr>
+      <tr><td class="aup-key">4</td><td>Spear</td><td>2 Wood, 1 Scrap, 5 Bones</td><td class="aup-status" id="aupSpear"></td></tr>
+      <tr><td class="aup-key">5</td><td>Friend 1</td><td style="white-space:normal;max-width:220px;font-size:14px;">5 Scrap, 4 Wood, 4 Bones, 4 Rabbit Foot, 2 Sheep Wool, 1 Deer Skin</td><td class="aup-status" id="aupFriend1"></td></tr>
+      <tr><td class="aup-key">6</td><td>Friend 2</td><td style="white-space:normal;max-width:220px;font-size:14px;">5 Scrap, 4 Wood, 4 Bones, 4 Rabbit Foot, 2 Sheep Wool, 1 Deer Skin</td><td class="aup-status" id="aupFriend2"></td></tr>
+      <tr><td class="aup-key">7</td><td>Torch Battery</td><td>15 Scrap, 5 Bones</td><td class="aup-status" id="aupTorch"></td></tr>
+    </table>
+  </div>
+  <div id="friendHint">Defeat all the guards, then press E to free your friend</div>
+  <div id="toast"></div>
+  <div id="keysHint"><b>WASD</b> move &nbsp; <b>SHIFT</b> sprint &nbsp; <b>E</b> chop/door/anvil &nbsp; <b>R</b> spear &nbsp; <b>G</b> gun &nbsp; <b>X</b> target (long range) &nbsp; <b>F</b> feed fire &nbsp; <b>P</b> plant &nbsp; <b>T</b> torch &nbsp; <b>1</b>/<b>2</b> craft gun/ammo &nbsp; <b>3</b>/<b>4</b> upgrade axe/spear &nbsp; <b>5</b>/<b>6</b> upgrade friends &nbsp; <b>7</b> craft battery &nbsp; <b>V</b> view &nbsp; <b>M</b> map &nbsp; <b>B</b> toggle HUD &nbsp; <b>Z</b> pause</div>
+
+  <div id="giantCutscene">
+    <div class="bar top"></div>
+    <div class="bar bottom"></div>
+    <div class="vignette"></div>
+    <div class="cs-text">
+      <h2>A GIANT AWAKENS</h2>
+      <p>Something enormous is moving in the dark. It hits hard and moves fast — flee to the fire, or fight if you dare.</p>
+    </div>
+  </div>
+
+  <div id="storyCutscene">
+    <div class="story-scene active" data-scene="0">
+      <svg viewBox="0 0 400 220">
+        <polygon points="0,220 30,140 60,220" fill="#0c1a0a"/>
+        <polygon points="40,220 80,110 120,220" fill="#0f2110"/>
+        <polygon points="300,220 340,120 380,220" fill="#0f2110"/>
+        <polygon points="330,220 370,140 400,220" fill="#0c1a0a"/>
+        <circle cx="130" cy="140" r="10" fill="#dbc4a0"/>
+        <rect x="123" y="150" width="14" height="30" rx="4" fill="#6a7a5a"/>
+        <circle cx="175" cy="140" r="10" fill="#e8d2b0"/>
+        <rect x="168" y="150" width="14" height="30" rx="4" fill="#6a4fb0"/>
+        <circle cx="220" cy="140" r="10" fill="#e8d2b0"/>
+        <rect x="213" y="150" width="14" height="30" rx="4" fill="#2a8a8a"/>
+      </svg>
+      <div class="story-caption">You and two friends made camp at the edge of the forest.</div>
+    </div>
+    <div class="story-scene" data-scene="1">
+      <svg viewBox="0 0 400 220">
+        <circle cx="60" cy="100" r="6" fill="#ff3020"/><circle cx="90" cy="80" r="6" fill="#ff3020"/>
+        <circle cx="310" cy="90" r="6" fill="#ff3020"/><circle cx="340" cy="110" r="6" fill="#ff3020"/>
+        <circle cx="70" cy="150" r="6" fill="#ff3020"/><circle cx="330" cy="150" r="6" fill="#ff3020"/>
+        <g class="arm-reach">
+          <rect x="120" y="140" width="55" height="20" rx="9" fill="#241a14"/>
+        </g>
+        <g class="drag-group">
+          <rect x="250" y="140" width="55" height="20" rx="9" fill="#241a14"/>
+        </g>
+        <circle cx="130" cy="140" r="10" fill="#dbc4a0"/>
+        <rect x="123" y="150" width="14" height="30" rx="4" fill="#6a7a5a"/>
+        <circle cx="175" cy="140" r="9" fill="#e8d2b0" class="friend-shrink"/>
+        <rect x="168" y="150" width="14" height="28" rx="4" fill="#6a4fb0" class="friend-shrink"/>
+        <circle cx="220" cy="140" r="9" fill="#e8d2b0" class="victim"/>
+        <rect x="213" y="150" width="14" height="28" rx="4" fill="#2a8a8a" class="victim"/>
+      </svg>
+      <div class="story-caption">Then monsters swarmed out of the dark and dragged your two friends away — in different directions.</div>
+    </div>
+    <div class="story-scene" data-scene="2">
+      <svg viewBox="0 0 400 220">
+        <rect x="20" y="60" width="110" height="110" fill="#0a0a0a" opacity="0.5"/>
+        <rect x="27" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="49" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="71" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="93" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="115" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <circle cx="75" cy="140" r="8" fill="#e8d2b0"/>
+        <rect x="68" y="149" width="14" height="26" rx="4" fill="#6a4fb0"/>
+        <circle cx="35" cy="185" r="4" fill="#ff3020"/><circle cx="60" cy="192" r="4" fill="#ff3020"/>
+        <circle cx="90" cy="190" r="4" fill="#ff3020"/><circle cx="115" cy="184" r="4" fill="#ff3020"/>
+        <circle cx="75" cy="198" r="4" fill="#ff3020"/>
+        <text x="15" y="50" fill="#c9a0ff" font-size="14" font-family="monospace">CAMP 1 · 5 GUARDS</text>
+
+        <rect x="270" y="60" width="110" height="110" fill="#0a0a0a" opacity="0.5"/>
+        <rect x="277" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="299" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="321" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="343" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="365" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <circle cx="325" cy="140" r="8" fill="#e8d2b0"/>
+        <rect x="318" y="149" width="14" height="26" rx="4" fill="#2a8a8a"/>
+        <circle cx="285" cy="188" r="4" fill="#ff3020"/><circle cx="305" cy="196" r="4" fill="#ff3020"/>
+        <circle cx="325" cy="192" r="4" fill="#ff3020"/><circle cx="345" cy="196" r="4" fill="#ff3020"/>
+        <circle cx="365" cy="188" r="4" fill="#ff3020"/><circle cx="295" cy="200" r="4" fill="#ff3020"/>
+        <circle cx="315" cy="204" r="4" fill="#ff3020"/><circle cx="335" cy="204" r="4" fill="#ff3020"/>
+        <circle cx="355" cy="200" r="4" fill="#ff3020"/><circle cx="325" cy="206" r="4" fill="#ff3020"/>
+        <text x="262" y="50" fill="#c9a0ff" font-size="14" font-family="monospace">CAMP 2 · 10 GUARDS</text>
+      </svg>
+      <div class="story-caption">They were caged in two separate camps, deep in the forest — one guarded by a pack of 5 monsters, the other by 10.</div>
+    </div>
+    <div class="story-scene" data-scene="3">
+      <svg viewBox="0 0 400 220">
+        <rect x="30" y="70" width="120" height="110" fill="#0a0a0a" opacity="0.5"/>
+        <rect x="38" y="70" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="62" y="70" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="86" y="70" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="110" y="70" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="134" y="70" width="6" height="110" fill="#3a3a3a"/>
+        <circle cx="90" cy="150" r="9" fill="#dbc4a0"/>
+        <rect x="83" y="159" width="14" height="26" rx="4" fill="#6a7a5a"/>
+      </svg>
+      <div class="story-caption final">Kill every guard at a camp, then free the friend held there — they'll wait safe by your campfire. Find the key in the monster's den and get everyone out before the giant finds you first.</div>
+    </div>
+    <div class="story-scene" data-scene="4">
+      <svg viewBox="0 0 400 220">
+        <rect x="0" y="0" width="400" height="220" fill="#050302"/>
+        <circle class="eye-glow" cx="165" cy="95" r="9" fill="#ff3020"/>
+        <circle class="eye-glow" cx="215" cy="92" r="9" fill="#ff3020"/>
+        <circle cx="190" cy="175" r="9" fill="#dbc4a0"/>
+        <rect x="183" y="184" width="14" height="28" rx="4" fill="#6a7a5a"/>
+      </svg>
+      <div class="story-caption warn">Your friends were only caged. If the giant catches you, it won't lock you up — it will eat you.</div>
+    </div>
+    <div class="story-scene" data-scene="5">
+      <svg viewBox="0 0 400 220">
+        <rect x="0" y="0" width="400" height="220" fill="#050302"/>
+        <circle class="eye-glow" cx="180" cy="100" r="7" fill="#7aff5a"/>
+        <circle class="eye-glow" cx="212" cy="98" r="7" fill="#7aff5a"/>
+        <circle cx="190" cy="175" r="9" fill="#dbc4a0"/>
+        <rect x="183" y="184" width="14" height="28" rx="4" fill="#6a7a5a"/>
+        <text x="90" y="45" fill="#7aff5a" font-size="18" font-family="monospace" letter-spacing="4">WAR NIGHT</text>
+      </svg>
+      <div class="story-caption warn">Every 3rd, 5th, 7th, 9th... night is a War Night — 6 to 9 zombies show up, each tough enough to take several hits. Spear them, shoot them, or let a freed friend pile on too.</div>
+    </div>
+  </div>
+
+  <div id="deathCutscene">
+    <div class="story-scene active" data-scene="0">
+      <svg viewBox="0 0 400 220">
+        <rect x="0" y="0" width="400" height="220" fill="#050302"/>
+        <circle class="eye-glow" cx="300" cy="85" r="10" fill="#ff3020"/>
+        <circle class="eye-glow" cx="345" cy="82" r="10" fill="#ff3020"/>
+        <g class="flee-run">
+          <circle cx="110" cy="150" r="10" fill="#dbc4a0"/>
+          <rect x="103" y="160" width="14" height="28" rx="4" fill="#6a7a5a"/>
+        </g>
+      </svg>
+      <div class="story-caption">Something huge is closing in behind you —</div>
+    </div>
+    <div class="story-scene" data-scene="1">
+      <svg viewBox="0 0 400 220">
+        <g class="lunge-giant">
+          <ellipse cx="220" cy="120" rx="110" ry="82" fill="#241a14"/>
+          <circle cx="180" cy="90" r="8" fill="#ff3020"/>
+          <circle cx="230" cy="82" r="8" fill="#ff3020"/>
+        </g>
+        <circle cx="150" cy="170" r="10" fill="#dbc4a0"/>
+        <rect x="143" y="180" width="14" height="28" rx="4" fill="#6a7a5a"/>
+      </svg>
+      <div class="story-caption">— it catches you before you can reach the fire —</div>
+    </div>
+    <div class="story-scene" data-scene="2">
+      <svg viewBox="0 0 400 220">
+        <rect x="270" y="60" width="110" height="110" fill="#0a0a0a" opacity="0.5"/>
+        <rect x="277" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="299" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="321" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="343" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <rect x="365" y="60" width="6" height="110" fill="#3a3a3a"/>
+        <g class="drag-to-den">
+          <ellipse cx="180" cy="150" rx="70" ry="46" fill="#241a14"/>
+          <circle cx="155" cy="128" r="7" fill="#ff3020"/>
+          <circle cx="195" cy="124" r="7" fill="#ff3020"/>
+          <circle cx="110" cy="150" r="9" fill="#dbc4a0"/>
+          <rect x="103" y="159" width="14" height="26" rx="4" fill="#6a7a5a"/>
+        </g>
+      </svg>
+      <div class="story-caption">— and drags you back toward its den, the same way it took the others —</div>
+    </div>
+    <div class="story-scene" data-scene="3">
+      <svg viewBox="0 0 400 220">
+        <ellipse cx="200" cy="120" rx="150" ry="95" fill="#1a0f0c"/>
+        <polygon class="jaw-top" points="90,110 310,110 260,60 140,60" fill="#0a0605"/>
+        <polygon class="jaw-bottom" points="90,110 310,110 260,160 140,160" fill="#150a08"/>
+        <circle class="victim" cx="200" cy="112" r="11" fill="#dbc4a0"/>
+      </svg>
+      <div class="story-caption">— but unlike your friends, there's no cage waiting. It feeds.</div>
+    </div>
+  </div>
+
+  <div id="pauseOverlay">
+    <h1>⏸ PAUSED</h1>
+    <p>Press Z or tap to resume</p>
+  </div>
+
+  <div id="mapOverlay">
+    <div class="map-title">FOREST MAP</div>
+    <canvas id="mapCanvas" width="520" height="400"></canvas>
+    <div class="map-legend">
+      <span><i class="dot" style="background:#7ecbe8;"></i>You</span>
+      <span><i class="dot" style="background:#ff9a3a;"></i>Campfire</span>
+      <span><i class="dot" style="background:#ff3020;"></i>Monster</span>
+      <span><i class="dot" style="background:#ff2a1a;"></i>Giant (night, dangerous)</span>
+      <span><i class="dot" style="background:#e2c469;"></i>Key</span>
+      <span><i class="dot" style="background:#8a5a2a;"></i>Monster Den</span>
+      <span><i class="dot" style="background:#7ad0ff;"></i>Exit Door</span>
+      <span><i class="dot" style="background:#c98a4a;"></i>House / Anvil</span>
+      <span><i class="dot" style="background:#c9a0ff;"></i>Captured Friend (guarded)</span>
+      <span><i class="dot" style="background:#e2a33c;"></i>Guards defeated — free me!</span>
+      <span>ring = safe boundary</span>
+    </div>
+    <div class="map-hint">tap/press M to close</div>
+  </div>
+
+  <div id="winOverlay">
+    <h1>YOU ESCAPED</h1>
+    <p>You fought past the guards, freed both of your friends, found the key deep in the monster's den, and unlocked the door out of the forest. Freedom at last — together.</p>
+    <button id="winCloseBtn">Keep exploring</button>
+  </div>
+
+  <div id="deathOverlay">
+    <h1>YOU DIED</h1>
+    <p id="deathReason">The forest claimed you.</p>
+    <button id="deathRestartBtn">Try again</button>
+  </div>
+
+  <div id="settingsOverlay">
+    <div id="settingsPanel">
+      <h2>SETTINGS</h2>
+
+      <div id="settingsLocked">
+        <div class="settingsRow" style="display:block;">
+          <label for="settingsPw">Enter password to unlock settings</label>
+        </div>
+        <input type="password" id="settingsPw" placeholder="password" autocomplete="off">
+        <div id="settingsErr"></div>
+        <div class="settingsBtnRow">
+          <button id="settingsUnlockBtn">Unlock</button>
+          <button class="secondary" id="settingsCloseBtn1">Close</button>
+        </div>
+      </div>
+
+      <div id="settingsUnlocked" style="display:none;">
+        <div class="settingsRow"><label>Player speed</label><input type="number" step="0.1" id="s_playerSpeed"></div>
+        <div class="settingsRow"><label>Chop range</label><input type="number" step="0.1" id="s_chopRange"></div>
+        <div class="settingsRow"><label>Fire decay rate (%/sec)</label><input type="number" step="0.01" id="s_fireDecayRate"></div>
+        <div class="settingsRow"><label>Health change rate (%/sec)</label><input type="number" step="0.01" id="s_healthChangeRate"></div>
+        <div class="settingsRow"><label>Fire warmth / boundary radius</label><input type="number" step="0.5" id="s_fireWarmRadius"></div>
+        <div class="settingsRow"><label>Fire feed gain (% per wood)</label><input type="number" step="1" id="s_fireFeedGain"></div>
+        <div class="settingsRow"><label>Spear range</label><input type="number" step="0.1" id="s_spearRange"></div>
+        <div class="settingsRow"><label>Spear heal amount</label><input type="number" step="1" id="s_spearHeal"></div>
+        <div class="settingsRow"><label>Sapling grow time (sec)</label><input type="number" step="1" id="s_plantGrowTime"></div>
+        <div class="settingsRow"><label>Monster count</label><input type="number" step="1" id="s_monsterCount"></div>
+        <div class="settingsRow"><label>Monster wander speed</label><input type="number" step="0.1" id="s_monsterWanderSpeed"></div>
+        <div class="settingsRow"><label>Monster chase speed</label><input type="number" step="0.1" id="s_monsterChaseSpeed"></div>
+        <div class="settingsRow"><label>Monster detect radius</label><input type="number" step="0.5" id="s_monsterDetectRadius"></div>
+        <div class="settingsRow"><label>Monster attack range</label><input type="number" step="0.1" id="s_monsterAttackRange"></div>
+        <div class="settingsRow"><label>Monster damage / sec</label><input type="number" step="0.5" id="s_monsterDamagePerSec"></div>
+        <div class="settingsRow"><label>Monster flee radius (day)</label><input type="number" step="0.5" id="s_monsterFleeRadius"></div>
+        <div class="settingsRow"><label>Monster flee speed (day)</label><input type="number" step="0.1" id="s_monsterFleeSpeed"></div>
+        <div class="settingsRow"><label>Day/night cycle length (sec)</label><input type="number" step="5" id="s_dayNightCycle"></div>
+
+        <div class="settingsSection">FRIEND HELPER</div>
+        <div class="settingsRow"><label>Rescue range</label><input type="number" step="0.1" id="s_FRIEND_RESCUE_RANGE"></div>
+        <div class="settingsRow"><label>Speed factor (of player)</label><input type="number" step="0.05" id="s_FRIEND_SPEED_FACTOR"></div>
+        <div class="settingsRow"><label>Chop interval (sec)</label><input type="number" step="0.1" id="s_FRIEND_CHOP_INTERVAL"></div>
+        <div class="settingsRow"><label>Auto-feed fire below (%)</label><input type="number" step="1" id="s_FRIEND_FEED_FUEL_THRESHOLD"></div>
+        <div class="settingsRow"><label>Auto-sapling interval (sec)</label><input type="number" step="1" id="s_FRIEND_AUTO_SAPLING_INTERVAL"></div>
+        <div class="settingsRow"><label>Upgrade cost: wood</label><input type="number" step="1" id="s_FRIEND_UPGRADE_WOOD_COST"></div>
+        <div class="settingsRow"><label>Upgrade cost: scrap</label><input type="number" step="1" id="s_FRIEND_UPGRADE_SCRAP_COST"></div>
+        <div class="settingsRow"><label>Upgrade cost: bones</label><input type="number" step="1" id="s_FRIEND_UPGRADE_BONE_COST"></div>
+        <div class="settingsRow"><label>Upgrade cost: rabbit foot</label><input type="number" step="1" id="s_FRIEND_UPGRADE_RABBITFOOT_COST"></div>
+        <div class="settingsRow"><label>Upgrade cost: sheep wool</label><input type="number" step="1" id="s_FRIEND_UPGRADE_SHEEPWOOL_COST"></div>
+        <div class="settingsRow"><label>Upgrade cost: deer skin</label><input type="number" step="1" id="s_FRIEND_UPGRADE_DEERSKIN_COST"></div>
+        <div class="settingsRow"><label>Upgraded chop damage</label><input type="number" step="1" id="s_FRIEND_UPGRADED_CHOP_DAMAGE"></div>
+        <div class="settingsRow"><label>Upgraded zombie damage (%)</label><input type="number" step="0.5" id="s_FRIEND_UPGRADED_ZOMBIE_DAMAGE_PCT"></div>
+        <div class="settingsRow"><label>Upgraded speed multiplier</label><input type="number" step="0.1" id="s_FRIEND_UPGRADED_SPEED_MULT"></div>
+        <div class="settingsRow"><label>Zombie hit interval (sec)</label><input type="number" step="0.1" id="s_FRIEND_ZOMBIE_HIT_INTERVAL"></div>
+        <div class="settingsRow"><label>Zombie hit range</label><input type="number" step="0.1" id="s_FRIEND_ZOMBIE_RANGE"></div>
+
+        <div class="settingsSection">ANVIL</div>
+        <div class="settingsRow"><label>Broken piece count</label><input type="number" step="1" id="s_ANVIL_PIECE_COUNT"></div>
+        <div class="settingsRow"><label>Interact range</label><input type="number" step="0.5" id="s_ANVIL_INTERACT_RANGE"></div>
+
+        <div class="settingsSection">TORCH</div>
+        <div class="settingsRow"><label>Battery life (sec)</label><input type="number" step="1" id="s_TORCH_MAX_SECONDS"></div>
+        <div class="settingsRow"><label>Battery cost: scrap</label><input type="number" step="1" id="s_TORCH_BATTERY_SCRAP_COST"></div>
+        <div class="settingsRow"><label>Battery cost: bones</label><input type="number" step="1" id="s_TORCH_BATTERY_BONE_COST"></div>
+        <div class="settingsRow"><label>Monster flee radius</label><input type="number" step="1" id="s_TORCH_FLEE_RADIUS"></div>
+        <div class="settingsRow"><label>Monster flee speed</label><input type="number" step="0.1" id="s_TORCH_FLEE_SPEED"></div>
+
+        <div class="settingsSection">WAR NIGHTS</div>
+        <div class="settingsRow"><label>Zombie count (min)</label><input type="number" step="1" id="s_WAR_NIGHT_ZOMBIE_COUNT_MIN"></div>
+        <div class="settingsRow"><label>Zombie count (max)</label><input type="number" step="1" id="s_WAR_NIGHT_ZOMBIE_COUNT_MAX"></div>
+        <div class="settingsRow"><label>Zombie HP (%)</label><input type="number" step="1" id="s_ZOMBIE_HP"></div>
+        <div class="settingsRow"><label>Spear damage (%)</label><input type="number" step="0.5" id="s_ZOMBIE_SPEAR_DAMAGE_PCT"></div>
+        <div class="settingsRow"><label>Gun damage (%)</label><input type="number" step="0.5" id="s_ZOMBIE_GUN_DAMAGE_PCT"></div>
+        <div class="settingsRow"><label>Friend hit damage (%)</label><input type="number" step="0.5" id="s_ZOMBIE_FRIEND_DAMAGE_PCT"></div>
+        <div class="settingsRow"><label>Player hunt cooldown (sec)</label><input type="number" step="0.5" id="s_ZOMBIE_HUNT_COOLDOWN"></div>
+
+        <div class="settingsSection">THE GIANT</div>
+        <div class="settingsRow"><label>HP (%)</label><input type="number" step="1" id="s_GIANT_HP"></div>
+        <div class="settingsRow"><label>Gun damage per shot (%)</label><input type="number" step="0.5" id="s_GIANT_GUN_DAMAGE_PCT"></div>
+        <div class="settingsRow"><label>Bones dropped on kill</label><input type="number" step="1" id="s_GIANT_BONE_DROP"></div>
+        <div class="settingsRow"><label>Min spawn distance</label><input type="number" step="1" id="s_GIANT_MIN_SPAWN_DIST"></div>
+        <div class="settingsRow"><label>Detect radius</label><input type="number" step="1" id="s_GIANT_DETECT_RADIUS"></div>
+        <div class="settingsRow"><label>Chase speed</label><input type="number" step="0.5" id="s_GIANT_CHASE_SPEED"></div>
+        <div class="settingsRow"><label>Wander speed</label><input type="number" step="0.1" id="s_GIANT_WANDER_SPEED"></div>
+        <div class="settingsRow"><label>Attack range</label><input type="number" step="0.1" id="s_GIANT_ATTACK_RANGE"></div>
+        <div class="settingsRow"><label>Hit damage</label><input type="number" step="1" id="s_GIANT_HIT_DAMAGE"></div>
+        <div class="settingsRow"><label>Hit interval (sec)</label><input type="number" step="0.1" id="s_GIANT_HIT_INTERVAL"></div>
+
+        <div id="settingsErr2" class="settingsErr-shared"></div>
+          <button id="settingsApplyBtn">Apply</button>
+          <button class="secondary" id="settingsResetBtn">Reset defaults</button>
+          <button class="secondary" id="settingsCloseBtn2">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- touch controls -->
+  <div id="touchControls">
+    <div id="joyBase"><div id="joyKnob"></div></div>
+    <div id="touchButtons">
+      <div class="tbtn-row">
+        <div class="tbtn tbtn-small" id="btnMap">map</div>
+        <div class="tbtn tbtn-small" id="btnSprint">run</div>
+        <div class="tbtn tbtn-small" id="btnPause">pause</div>
+        <div class="tbtn tbtn-small" id="btnHud">hud</div>
+      </div>
+      <div class="tbtn-row">
+        <div class="tbtn tbtn-small" id="btnView">view</div>
+        <div class="tbtn tbtn-small" id="btnFeed">feed</div>
+        <div class="tbtn tbtn-small" id="btnPlant">🌱</div>
+      </div>
+      <div class="tbtn-row">
+        <div class="tbtn tbtn-small" id="btnCraftGun">gun</div>
+        <div class="tbtn tbtn-small" id="btnCraftAmmo">ammo</div>
+      </div>
+      <div class="tbtn-row">
+        <div class="tbtn tbtn-small" id="btnUpgradeAxe">axe+</div>
+        <div class="tbtn tbtn-small" id="btnUpgradeSpear">spear+</div>
+      </div>
+      <div class="tbtn-row">
+        <div class="tbtn tbtn-small" id="btnUpgradeFriend1">friend1+</div>
+        <div class="tbtn tbtn-small" id="btnUpgradeFriend2">friend2+</div>
+      </div>
+      <div class="tbtn-row">
+        <div class="tbtn tbtn-small" id="btnTorch">🔦 torch</div>
+        <div class="tbtn tbtn-small" id="btnCraftTorch">battery</div>
+      </div>
+      <div class="tbtn-row">
+        <div id="chopBtn" class="tbtn">CHOP</div>
+        <div id="huntBtn" class="tbtn">SPEAR</div>
+        <div id="gunBtn" class="tbtn">GUN</div>
+      </div>
+      <div class="tbtn-row">
+        <div id="targetBtn" class="tbtn">TARGET</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+
+/* ============================================================
+   CONSTANTS
+============================================================ */
+const WORLD_HALF_X = 110, WORLD_HALF_Z = 90;
+const TREE_COUNT = 55;
+const TURN_SPEED = 2.4; // radians/sec, A/D turning in first-person
+const FIRE_FEED_RANGE = 6;
+const ANIMAL_RESPAWN_TIME = 22;   // seconds before a hunted animal repopulates the forest
+
+const SCRAP_COUNT = 34;
+const SCRAP_PICKUP_RANGE = 1.4;
+const SCRAP_RESPAWN_TIME = 25;    // seconds before a collected scrap piece respawns elsewhere
+
+// --- planting saplings ---
+const PLANT_RANGE = 3.0;         // how far in front of you a sapling gets planted
+const PLANT_MIN_TREE_DIST = 2.2; // keep new saplings from overlapping existing trees
+
+// --- safe-zone boundary + monsters ---
+// the boundary is the same circle the fire already warms you in (SETTINGS.fireWarmRadius).
+// while the fire has fuel, that circle is "safe" and monsters are held outside it.
+// once the fire burns all the way out, the boundary goes down and monsters can
+// walk in and come after you — feeding the fire again pushes them back out.
+const MONSTER_MIN_SPAWN_DIST = 40;   // monsters live out in the deep forest, not right on top of camp
+const MONSTER_HP = 2;                 // spear hits needed to kill a monster
+const MONSTER_BONE_DROP = 2;          // bones gained per monster killed
+const MONSTER_RESPAWN_TIME = 30;      // seconds before a killed monster is replaced
+const HUNT_COOLDOWN = 1.5;            // seconds between spear/gun swings
+
+// --- monster den, the only key, and the exit door ---
+// the den sits deep in the forest, guarded by a whole pack of monsters that
+// stay near it and are aggressive day and night. the single key spawns at
+// the den and must be carried all the way to the exit door to win.
+const MONSTER_HOME = {x: WORLD_HALF_X-16, z: WORLD_HALF_Z-14};
+const DOOR_POS = {x: -WORLD_HALF_X+10, z: -WORLD_HALF_Z+10};
+const GUARD_COUNT = 13;                // "many monsters" guarding the den — a proper pack
+const GUARD_HP = 3;                    // guards (den + jail camps) are tougher — 3 spear hits to kill
+const GUARD_ROAM_RADIUS = 15;          // guards wander within this ring around the den
+const GUARD_DETECT_RADIUS = 20;        // guards notice and chase from this far, day or night
+const GUARD_CHASE_SPEED = 3.1;
+const GUARD_WANDER_SPEED = 1.5;
+const GUARD_ATTACK_RANGE = 1.6;
+const GUARD_DAMAGE_PER_SEC = 7;
+const KEY_PICKUP_RANGE = 1.5;
+const DOOR_RANGE = 3.5;
+
+// --- two captured friends, each held in a separate camp guarded by a pack
+// of monsters. free both (walk up and press E) before the door will open. ---
+const JAIL1_POS = {x: -WORLD_HALF_X+20, z: WORLD_HALF_Z-20};
+const JAIL2_POS = {x: WORLD_HALF_X-20, z: -WORLD_HALF_Z+20};
+const JAIL1_GUARD_COUNT = 5;
+const JAIL2_GUARD_COUNT = 10;
+
+// --- freed friends: once rescued, they wander camp and help out on their
+// own — chopping trees, feeding the fire, and planting saplings — but move
+// slower than the player and only work within range of the campfire. ---
+const FRIEND_WORK_RANGE_BUFFER = 10;   // how far past the fire's boundary a friend will roam to reach a tree
+const FRIEND_ARRIVE_DIST = 1.0;
+
+
+// --- the house, its broken anvil, and gun crafting ---
+// a small house sits out in the forest with a broken anvil inside. find the
+// 3 broken anvil pieces scattered around the map and bring them back to fix
+// it, then use the working anvil to craft a gun and ammo out of scrap.
+const HOUSE_POS = {x: -60, z: 46};
+const ANVIL_POS = {x: HOUSE_POS.x, z: HOUSE_POS.z + 1.2};
+const ANVIL_PIECE_MIN_DIST = 10;      // keep pieces off the player's exact spawn point
+const PIECE_PICKUP_RANGE = 1.8;
+const GUN_SCRAP_COST = 10;
+const AMMO_SCRAP_COST = 2;
+const GUN_STARTING_AMMO = 0;          // crafting the gun itself grants no free ammo
+const GUN_RANGE = 9.0;                // ranged shot distance once you have the gun + ammo
+const GUN_DAMAGE = 3;                 // one shot drops most monsters (spear takes multiple hits)
+const TARGET_RANGE = 30.0;            // long-range aimed shot — picks off far animals/monsters, uses the gun+ammo
+const TARGET_COOLDOWN = 2.5;          // slower than a regular gun shot, balances the much longer reach
+
+// --- anvil upgrades: a sharper axe and a sturdier spear, crafted from wood/scrap/bones ---
+const AXE_UPGRADE_WOOD_COST = 2;
+const AXE_UPGRADE_SCRAP_COST = 2;
+const AXE_UPGRADE_BONE_COST = 4;
+const AXE_UPGRADED_CHOP_DAMAGE = 2;   // upgraded axe fells any tree (5 hp) in 3 hits instead of 5
+const SPEAR_UPGRADE_WOOD_COST = 2;
+const SPEAR_UPGRADE_SCRAP_COST = 1;
+const SPEAR_UPGRADE_BONE_COST = 5;
+const SPEAR_UPGRADED_DAMAGE = 2;      // upgraded spear drops any animal or monster in 2 hits
+
+// --- torch: scares monsters off while it's lit, but the giant ignores it.
+// runs on a battery that's built at the anvil out of scrap and bones; each
+// battery gives a fixed 30 seconds of light, then it's spent and discarded. ---
+
+
+// --- night horde: extra monsters that emerge from the deep forest each night ---
+// these are on top of the regular ambient monsters and the den guards, and
+// vanish again at dawn so the forest doesn't stay permanently overrun.
+const NIGHT_SPAWN_COUNT = 6;           // extra monsters that spawn when night falls
+const NIGHT_SPAWN_MIN_DIST = 34;       // spawn out in the deep forest, not on top of camp
+
+// --- war nights: every 3rd, 5th, 7th, 9th... night, a pack of zombies shows up ---
+// tougher and more dangerous than a regular monster. hp is tracked as a
+// percentage (like the giant) since weapons chip away at it in fixed %.
+
+// --- the giant: one huge monster that only exists at night ---
+// it prowls the whole map hunting the player once the sun goes down, but like
+// every other monster it's physically barred from crossing the firelit boundary.
+const GIANT_SCALE = 2.8;
+const STAMINA_DRAIN_RATE = 28;         // stamina lost per second while sprinting (~3.5s full sprint)
+const STAMINA_REGEN_RATE = 14;         // stamina recovered per second while not sprinting
+const STAMINA_UNLOCK_THRESHOLD = 30;   // must regen to this % after fully draining before sprint works again
+
+// --- tunable gameplay settings — all editable in-game via the Settings panel (password: 2013) ---
+const SETTINGS_PASSWORD = '2013';
+const SETTINGS_DEFAULTS = {
+  playerSpeed: 6.5,
+  chopRange: 3.0,
+  fireDecayRate: 1/3,     // fire loses 1% every (1/this) seconds
+  healthChangeRate: 1/3,  // player health gains/loses 1% every (1/this) seconds
+  fireWarmRadius: 12,     // also doubles as the safe-zone boundary radius
+  fireFeedGain: 15,       // % fuel per wood fed
+  spearRange: 3.2,
+  spearHeal: 8,
+  plantGrowTime: 50,
+  monsterCount: 6,
+  monsterWanderSpeed: 1.7,
+  monsterChaseSpeed: 3.4,
+  monsterDetectRadius: 22,
+  monsterAttackRange: 1.6,
+  monsterDamagePerSec: 9,
+  dayNightCycle: 200,
+  monsterFleeRadius: 9,
+  monsterFleeSpeed: 3.0,
+
+  // -- friend helper NPC --
+  FRIEND_RESCUE_RANGE: 2.4,
+  FRIEND_SPEED_FACTOR: 0.45,      // friend walk speed = player speed * this (always slower than you)
+  FRIEND_CHOP_INTERVAL: 1.5,      // seconds between each of a friend's chop hits
+  FRIEND_FEED_FUEL_THRESHOLD: 55, // friends feed the fire once fuel drops below this %
+  FRIEND_AUTO_SAPLING_INTERVAL: 60, // seconds between a friend automatically getting a sapling to plant
+  FRIEND_UPGRADE_WOOD_COST: 4,
+  FRIEND_UPGRADE_SCRAP_COST: 5,
+  FRIEND_UPGRADE_BONE_COST: 4,
+  FRIEND_UPGRADE_RABBITFOOT_COST: 4,
+  FRIEND_UPGRADE_SHEEPWOOL_COST: 2,
+  FRIEND_UPGRADE_DEERSKIN_COST: 1,
+  FRIEND_UPGRADED_CHOP_DAMAGE: 2,        // upgraded friend chops trees twice as fast
+  FRIEND_UPGRADED_ZOMBIE_DAMAGE_PCT: 5,  // upgraded friend hits a zombie twice as hard
+  FRIEND_UPGRADED_SPEED_MULT: 1.8,       // upgraded friend moves and works this much faster overall
+  FRIEND_ZOMBIE_HIT_INTERVAL: 1.5,       // seconds between a friend's hits on a zombie
+  FRIEND_ZOMBIE_RANGE: 1.6,
+
+  // -- anvil --
+  ANVIL_PIECE_COUNT: 3,
+  ANVIL_INTERACT_RANGE: 4.0,
+
+  // -- torch --
+  TORCH_MAX_SECONDS: 30,          // seconds of light in one battery
+  TORCH_BATTERY_SCRAP_COST: 15,
+  TORCH_BATTERY_BONE_COST: 5,
+  TORCH_FLEE_RADIUS: 24,          // monsters this close flee while the torch is lit
+  TORCH_FLEE_SPEED: 6.0,          // how fast a torch-scared monster runs off
+
+  // -- war nights --
+  WAR_NIGHT_ZOMBIE_COUNT_MIN: 6,  // war night zombie count is randomized each war night
+  WAR_NIGHT_ZOMBIE_COUNT_MAX: 9,  // range: more than 5, less than 10 (i.e. 6-9)
+  ZOMBIE_HP: 100,
+  ZOMBIE_SPEAR_DAMAGE_PCT: 7.5,   // player spear hit
+  ZOMBIE_GUN_DAMAGE_PCT: 10,      // player gun shot
+  ZOMBIE_FRIEND_DAMAGE_PCT: 2.5,  // a freed friend's hit
+  ZOMBIE_HUNT_COOLDOWN: 4,        // seconds between player attacks on a zombie
+
+  // -- the giant --
+  GIANT_HP: 100,                  // tracked as a percentage — only the gun can damage it
+  GIANT_GUN_DAMAGE_PCT: 5,        // each bullet takes 5% off (20 shots to kill)
+  GIANT_BONE_DROP: 10,
+  GIANT_MIN_SPAWN_DIST: 45,
+  GIANT_DETECT_RADIUS: 38,
+  GIANT_CHASE_SPEED: 20.0,        // this thing is a genuine nightmare to outrun
+  GIANT_WANDER_SPEED: 1.9,
+  GIANT_ATTACK_RANGE: 2.8,
+  GIANT_HIT_DAMAGE: 20,           // 100/20 = 5 hits kills a full-health player
+  GIANT_HIT_INTERVAL: 0.8,        // seconds between hits while in range
+};
+let SETTINGS = Object.assign({}, SETTINGS_DEFAULTS);
+
+// calmer, more "normal" flee behaviour — animals notice the player from
+// a shorter distance, don't bolt at unrealistic speed, and settle down quickly
+const SPOOK_RADIUS = 5.5;
+const SPOOK_SPEED = {rabbit:2.0, deer:2.4, sheep:1.1};
+const WANDER_SPEED = {rabbit:1.4, deer:1.6, sheep:0.9};
+
+function rand(a,b){ return a+Math.random()*(b-a); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function flatDist(a,b){ return Math.hypot(a.x-b.x, a.z-b.z); }
+function lerpAngle(a,b,t){
+  let diff = ((b-a+Math.PI*3)%(Math.PI*2))-Math.PI;
+  return a + diff*t;
+}
+
+// frees GPU geometry/material memory for a removed object — without this,
+// every chopped tree / killed monster / collected scrap leaks VRAM and the
+// game gets progressively laggier the longer you play.
+function disposeObject3D(obj){
+  if(!obj) return;
+  obj.traverse(node=>{
+    if(node.isMesh){
+      // skip shared/cached geometry+material — other live instances still use them.
+      // only free resources that were uniquely created for this one object.
+      if(node.geometry && !node.geometry.isShared) node.geometry.dispose();
+      if(node.material){
+        const mats = Array.isArray(node.material) ? node.material : [node.material];
+        mats.forEach(m=>{ if(!m.isShared) m.dispose(); });
+      }
+    }
+  });
+}
+
+// small caches so repeated mesh factories (trees, animals, monsters, scrap)
+// reuse the same geometry/material objects instead of allocating brand new
+// ones for every single instance. Cached resources are tagged isShared so
+// disposeObject3D knows never to free them out from under other instances.
+const GEO_CACHE = {};
+const MAT_CACHE = {};
+function sharedGeo(key, factory){
+  if(!GEO_CACHE[key]){ GEO_CACHE[key] = factory(); GEO_CACHE[key].isShared = true; }
+  return GEO_CACHE[key];
+}
+function sharedMat(key, factory){
+  if(!MAT_CACHE[key]){ MAT_CACHE[key] = factory(); MAT_CACHE[key].isShared = true; }
+  return MAT_CACHE[key];
+}
+
+/* ============================================================
+   THREE.JS SETUP
+============================================================ */
+let scene, camera, renderer;
+let hemiLight, sunLight, ambientLight, skyDome, stars, sunDisc, moonDisc;
+// tiny cosmetic details (teeth, claws, spikes, eyes, bolts...) are individual
+// draw calls in the shadow pass just like a big trunk or torso, but their
+// shadows are imperceptible at this map resolution — skipping them cuts a
+// large chunk of shadow draw calls (a monster alone has ~20 sub-meshes) with
+// no visible difference. Geometry is shared/cached, so this bounding-sphere
+// check runs once per unique shape, not per frame.
+function enableShadows(obj){
+  obj.traverse(o=>{
+    if(o.isMesh){
+      o.receiveShadow = true;
+      if(o.geometry){
+        if(!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+        o.castShadow = o.geometry.boundingSphere.radius > 0.2;
+      } else {
+        o.castShadow = true;
+      }
+    }
+  });
+  return obj;
+}
+function makeGroundTexture(){
+  const size = 512;
+  const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,size,size);
+  for(let i=0;i<9000;i++){
+    const x = Math.random()*size, y = Math.random()*size;
+    const b = 0.55 + Math.random()*0.5;
+    ctx.fillStyle = 'rgba('+Math.floor(b*255)+','+Math.floor(b*255)+','+Math.floor(b*255)+','+(0.3+Math.random()*0.3)+')';
+    ctx.fillRect(x,y,1+Math.random()*2,1+Math.random()*2);
+  }
+  for(let i=0;i<16;i++){
+    const x=Math.random()*size, y=Math.random()*size, r=12+Math.random()*32;
+    const grad = ctx.createRadialGradient(x,y,0,x,y,r);
+    grad.addColorStop(0,'rgba(110,85,55,0.28)');
+    grad.addColorStop(1,'rgba(110,85,55,0)');
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+function makeSkyDome(){
+  const geo = new THREE.SphereGeometry(900, 24, 16);
+  const pos = geo.attributes.position;
+  const colors = [];
+  const topColor = new THREE.Color(0x4a90d9);
+  const bottomColor = new THREE.Color(0xdff0e0);
+  for(let i=0;i<pos.count;i++){
+    const t = THREE.MathUtils.clamp((pos.getY(i)/900+1)/2, 0, 1);
+    const c = bottomColor.clone().lerp(topColor, Math.pow(t,0.6));
+    colors.push(c.r,c.g,c.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
+  const mat = new THREE.MeshBasicMaterial({vertexColors:true, side:THREE.BackSide, fog:false, depthWrite:false});
+  return new THREE.Mesh(geo, mat);
+}
+function makeStars(){
+  const count = 700;
+  const positions = new Float32Array(count*3);
+  for(let i=0;i<count;i++){
+    const theta = Math.random()*Math.PI*2;
+    const phi = Math.random()*Math.PI*0.48;
+    const r = 850;
+    positions[i*3] = r*Math.sin(phi)*Math.cos(theta);
+    positions[i*3+1] = r*Math.cos(phi) + 40;
+    positions[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  const mat = new THREE.PointsMaterial({color:0xffffff, size:2.2, sizeAttenuation:false, transparent:true, opacity:0, fog:false, depthWrite:false});
+  return new THREE.Points(geo, mat);
+}
+function makeCelestialDisc(color){
+  const mat = new THREE.MeshBasicMaterial({color, fog:false, transparent:true, depthWrite:false, side:THREE.DoubleSide});
+  return new THREE.Mesh(new THREE.CircleGeometry(30,24), mat);
+}
+function initThree(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x8fbf8a);
+  scene.fog = new THREE.Fog(0x8fbf8a, 70, 320);
+
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.1, 1200);
+
+  // high-DPI phones (devicePixelRatio 3+) render every fragment shader 3x+ over —
+  // capping harder on touch devices keeps frame time smooth without a visible
+  // quality hit, since phone screens are small and held further from the eye.
+  // MSAA (antialias) is also one of the priciest single toggles on mobile GPUs,
+  // so it's dropped there in favor of the pixel-ratio cap doing the smoothing.
+  const isTouch = document.body.classList.contains('touch-enabled');
+  renderer = new THREE.WebGLRenderer({canvas: document.getElementById('three-canvas'), antialias:!isTouch, powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isTouch ? 1.25 : 1.75));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  window.addEventListener('resize', ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  hemiLight = new THREE.HemisphereLight(0xbdd7c8, 0x2a2410, 0.9);
+  scene.add(hemiLight);
+  sunLight = new THREE.DirectionalLight(0xfff2d0, 1.0);
+  sunLight.position.set(80,120,60);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
+  sunLight.shadow.camera.near = 5;
+  sunLight.shadow.camera.far = 260;
+  sunLight.shadow.camera.left = -55;
+  sunLight.shadow.camera.right = 55;
+  sunLight.shadow.camera.top = 55;
+  sunLight.shadow.camera.bottom = -55;
+  sunLight.shadow.bias = -0.0018;
+  sunLight.target = new THREE.Object3D();
+  scene.add(sunLight.target);
+  scene.add(sunLight);
+  ambientLight = new THREE.AmbientLight(0x445544, 0.4);
+  scene.add(ambientLight);
+
+  skyDome = makeSkyDome();
+  scene.add(skyDome);
+  stars = makeStars();
+  scene.add(stars);
+  sunDisc = makeCelestialDisc(0xfff2c0);
+  scene.add(sunDisc);
+  moonDisc = makeCelestialDisc(0xdfe8ff);
+  scene.add(moonDisc);
+
+  const groundGeo = new THREE.PlaneGeometry(WORLD_HALF_X*2+80, WORLD_HALF_Z*2+80, 1,1);
+  const groundTex = makeGroundTexture();
+  groundTex.repeat.set((WORLD_HALF_X*2+80)/6, (WORLD_HALF_Z*2+80)/6);
+  const groundMat = new THREE.MeshStandardMaterial({color:0x2f4a24, map:groundTex, roughness:1});
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.receiveShadow = true;
+  scene.add(ground);
+}
+
+/* ============================================================
+   MODEL BUILDERS
+============================================================ */
+function makeHumanoid(opts){
+  const g = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({color:opts.skin||0xd9b38c});
+  const cloth = new THREE.MeshStandardMaterial({color:opts.cloth||0x3a5a34});
+  const dark = new THREE.MeshStandardMaterial({color:opts.dark||0x2a2420});
+
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.9,1.1,0.5), cloth);
+  torso.position.y = 1.15; g.add(torso);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.38,12,10), skin);
+  head.position.y = 1.95; g.add(head);
+
+  const armGeo = new THREE.BoxGeometry(0.24,0.9,0.24);
+  const armL = new THREE.Mesh(armGeo, skin); armL.position.set(-0.62,1.15,0); armL.name='armL';
+  const armR = new THREE.Mesh(armGeo, skin); armR.position.set(0.62,1.15,0); armR.name='armR';
+  g.add(armL); g.add(armR);
+
+  const legGeo = new THREE.BoxGeometry(0.3,0.95,0.3);
+  const legL = new THREE.Mesh(legGeo, dark); legL.position.set(-0.24,0.42,0); legL.name='legL';
+  const legR = new THREE.Mesh(legGeo, dark); legR.position.set(0.24,0.42,0); legR.name='legR';
+  g.add(legL); g.add(legR);
+
+  g.userData.parts = {armL,armR,legL,legR,head,torso};
+  return enableShadows(g);
+}
+
+function makePlayerModel(){
+  const g = makeHumanoid({skin:0xd9b38c, cloth:0x3a5a34, dark:0x2a2420});
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.42,0.35,10), new THREE.MeshStandardMaterial({color:0x3a5a34}));
+  hat.position.y = 2.28; g.add(hat);
+  const spear = makeSpearMesh();
+  g.userData.parts.armR.add(spear);
+  spear.position.set(0,-0.5,0.1);
+  g.userData.spear = spear;
+  return g;
+}
+
+function makeAnimalModel(type){
+  const g = new THREE.Group();
+  if(type==='sheep'){
+    const bodyMat = sharedMat('sheepBody', ()=>new THREE.MeshStandardMaterial({color:0xe8e2d4, roughness:1}));
+    const partMat = sharedMat('sheepPart', ()=>new THREE.MeshStandardMaterial({color:0x4a4038}));
+    const body = new THREE.Mesh(sharedGeo('sheepBody', ()=>new THREE.BoxGeometry(1.0,0.65,0.65)), bodyMat);
+    body.position.y = 0.55;
+    const head = new THREE.Mesh(sharedGeo('sheepHead', ()=>new THREE.BoxGeometry(0.32,0.3,0.3)), partMat);
+    head.position.set(0.6,0.6,0);
+    g.add(body); g.add(head);
+    const legGeo = sharedGeo('sheepLeg', ()=>new THREE.CylinderGeometry(0.07,0.07,0.4,6));
+    [[-0.35,-0.22],[-0.35,0.22],[0.35,-0.22],[0.35,0.22]].forEach(([x,z])=>{
+      const leg = new THREE.Mesh(legGeo, partMat);
+      leg.position.set(x,0.2,z); g.add(leg);
+    });
+  } else if(type==='deer'){
+    const bodyMat = sharedMat('deerBody', ()=>new THREE.MeshStandardMaterial({color:0x9a6a3e}));
+    const headMat = sharedMat('deerHead', ()=>new THREE.MeshStandardMaterial({color:0x8a5a34}));
+    const legMat = sharedMat('deerLeg', ()=>new THREE.MeshStandardMaterial({color:0x7a5030}));
+    const body = new THREE.Mesh(sharedGeo('deerBody', ()=>new THREE.BoxGeometry(1.0,0.55,0.5)), bodyMat);
+    body.position.y = 0.75;
+    const neck = new THREE.Mesh(sharedGeo('deerNeck', ()=>new THREE.CylinderGeometry(0.14,0.16,0.6,6)), bodyMat);
+    neck.position.set(0.55,1.05,0); neck.rotation.z = -0.6;
+    const head = new THREE.Mesh(sharedGeo('deerHead', ()=>new THREE.BoxGeometry(0.28,0.24,0.32)), headMat);
+    head.position.set(0.85,1.35,0);
+    g.add(body); g.add(neck); g.add(head);
+    const antlerMat = sharedMat('deerAntler', ()=>new THREE.MeshStandardMaterial({color:0x5a4530}));
+    const antlerGeo = sharedGeo('deerAntler', ()=>new THREE.ConeGeometry(0.03,0.35,4));
+    [-0.08,0.08].forEach(off=>{
+      const antler = new THREE.Mesh(antlerGeo, antlerMat);
+      antler.position.set(0.85+off,1.7,0); antler.rotation.x = -0.3;
+      g.add(antler);
+    });
+    const legGeo = sharedGeo('deerLeg', ()=>new THREE.CylinderGeometry(0.06,0.06,0.7,6));
+    [[-0.35,-0.16],[-0.35,0.16],[0.35,-0.16],[0.35,0.16]].forEach(([x,z])=>{
+      const leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(x,0.35,z); g.add(leg);
+    });
+  } else {
+    const bodyMat = sharedMat('rabbitBody', ()=>new THREE.MeshStandardMaterial({color:0x8a7a63}));
+    const body = new THREE.Mesh(sharedGeo('rabbitBody', ()=>new THREE.SphereGeometry(0.35,10,8)), bodyMat);
+    body.position.y = 0.35; body.scale.set(1,0.9,1.4);
+    const earGeo = sharedGeo('rabbitEar', ()=>new THREE.ConeGeometry(0.06,0.3,6));
+    const earL = new THREE.Mesh(earGeo, bodyMat); earL.position.set(-0.08,0.65,0.15);
+    const earR = new THREE.Mesh(earGeo, bodyMat); earR.position.set(0.08,0.65,0.15);
+    g.add(body); g.add(earL); g.add(earR);
+  }
+  return enableShadows(g);
+}
+
+function makeTreeMesh(){
+  const g = new THREE.Group();
+  const trunkGeo = sharedGeo('treeTrunk', ()=>new THREE.CylinderGeometry(0.25,0.35,2.2,7));
+  const trunkMat = sharedMat('treeTrunk', ()=>new THREE.MeshStandardMaterial({color:0x4a3420}));
+  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+  trunk.position.y = 1.1;
+  const foliageMat = sharedMat('treeFoliage', ()=>new THREE.MeshStandardMaterial({color:0x2c4a24}));
+  const f1Geo = sharedGeo('treeFoliage1', ()=>new THREE.ConeGeometry(1.6,2.6,8));
+  const f2Geo = sharedGeo('treeFoliage2', ()=>new THREE.ConeGeometry(1.2,2.0,8));
+  const f1 = new THREE.Mesh(f1Geo, foliageMat); f1.position.y = 3.0;
+  const f2 = new THREE.Mesh(f2Geo, foliageMat); f2.position.y = 4.1;
+  g.add(trunk); g.add(f1); g.add(f2);
+  g.userData.foliage = [f1, f2];
+  return enableShadows(g);
+}
+
+function makeScrapMesh(){
+  const g = new THREE.Group();
+  const metalMat = sharedMat('scrapMetal', ()=>new THREE.MeshStandardMaterial({color:0x8fa0a0, metalness:0.3, roughness:0.7}));
+  const rustMat = sharedMat('scrapRust', ()=>new THREE.MeshStandardMaterial({color:0x9a5a3a, metalness:0.2, roughness:0.8}));
+  const piece1 = new THREE.Mesh(sharedGeo('scrapPiece1', ()=>new THREE.BoxGeometry(0.42,0.06,0.3)), metalMat);
+  piece1.rotation.set(0.3, rand(0,Math.PI*2), 0.15);
+  piece1.position.y = 0.08;
+  const piece2 = new THREE.Mesh(sharedGeo('scrapPiece2', ()=>new THREE.BoxGeometry(0.24,0.05,0.34)), rustMat);
+  piece2.rotation.set(-0.2, rand(0,Math.PI*2), 0.4);
+  piece2.position.set(0.08,0.05,-0.05);
+  g.add(piece1); g.add(piece2);
+  g.add(makeShadowBlob(0.35));
+  return g;
+}
+
+function makeHouseMesh(){
+  const g = new THREE.Group();
+  const wallMat = new THREE.MeshStandardMaterial({color:0x6b5334, roughness:0.9});
+  const roofMat = new THREE.MeshStandardMaterial({color:0x3a2a1c, roughness:0.85});
+  const floorMat = new THREE.MeshStandardMaterial({color:0x4a3a28, roughness:1});
+  const trimMat = new THREE.MeshStandardMaterial({color:0x2a1f14, roughness:0.8});
+  const stoneMat = new THREE.MeshStandardMaterial({color:0x8a8478, roughness:0.9});
+  const paneMat = new THREE.MeshStandardMaterial({color:0xffe8a0, emissive:0xd8a84c, emissiveIntensity:0.55, roughness:0.4});
+  const potMat = new THREE.MeshStandardMaterial({color:0x7a4a2c, roughness:0.9});
+  const bushMat = new THREE.MeshStandardMaterial({color:0x3f6a2e, roughness:0.9});
+
+  const floor = new THREE.Mesh(new THREE.BoxGeometry(6.2,0.15,5.2), floorMat);
+  floor.position.y = 0.075;
+  g.add(floor);
+
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(6.2,3,0.3), wallMat);
+  backWall.position.set(0,1.5,2.5); g.add(backWall);
+  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.3,3,5.2), wallMat);
+  leftWall.position.set(-3.05,1.5,0); g.add(leftWall);
+  const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.3,3,5.2), wallMat);
+  rightWall.position.set(3.05,1.5,0); g.add(rightWall);
+  // front wall, split to leave a doorway gap facing the player's approach
+  const frontL = new THREE.Mesh(new THREE.BoxGeometry(2.0,3,0.3), wallMat);
+  frontL.position.set(-2.1,1.5,-2.5); g.add(frontL);
+  const frontR = new THREE.Mesh(new THREE.BoxGeometry(2.0,3,0.3), wallMat);
+  frontR.position.set(2.1,1.5,-2.5); g.add(frontR);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.7,0.3), wallMat);
+  lintel.position.set(0,2.65,-2.5); g.add(lintel);
+
+  // corner trim posts — gives the walls a built, timber-framed look
+  [[-3.05,-2.5],[3.05,-2.5],[-3.05,2.5],[3.05,2.5]].forEach(([x,z])=>{
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.32,3.05,0.32), trimMat);
+    post.position.set(x,1.525,z); g.add(post);
+  });
+
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(7.0,0.35,5.9), roofMat);
+  roof.position.set(0,3.17,0); g.add(roof);
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(6.6,0.3,0.4), roofMat);
+  ridge.position.set(0,3.42,0); g.add(ridge);
+
+  // chimney, poking up through the back of the roof
+  const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.55,1.5,0.55), stoneMat);
+  chimney.position.set(2.1,3.9,1.4); g.add(chimney);
+  const chimneyCap = new THREE.Mesh(new THREE.BoxGeometry(0.75,0.16,0.75), trimMat);
+  chimneyCap.position.set(2.1,4.7,1.4); g.add(chimneyCap);
+
+  // windows either side of the doorway, warmly lit from inside
+  [-2.1,2.1].forEach(x=>{
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.85,0.85,0.1), trimMat);
+    frame.position.set(x,1.7,-2.66); g.add(frame);
+    const pane = new THREE.Mesh(new THREE.BoxGeometry(0.65,0.65,0.05), paneMat);
+    pane.position.set(x,1.7,-2.7); g.add(pane);
+    const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.65,0.06,0.08), trimMat);
+    crossH.position.set(x,1.7,-2.71); g.add(crossH);
+    const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.65,0.08), trimMat);
+    crossV.position.set(x,1.7,-2.71); g.add(crossV);
+    // flower planter beneath each window
+    const pot = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.28,0.32), potMat);
+    pot.position.set(x,0.9,-2.66); g.add(pot);
+    for(let i=0;i<3;i++){
+      const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.13,0), bushMat);
+      bush.position.set(x-0.2+i*0.2, 1.08, -2.62);
+      g.add(bush);
+    }
+  });
+
+  // low stone porch step at the doorway
+  const step = new THREE.Mesh(new THREE.BoxGeometry(2.6,0.18,0.6), stoneMat);
+  step.position.set(0,0.09,-2.95); g.add(step);
+
+  // door, swung open against the front-left wall
+  const doorPanel = new THREE.Mesh(new THREE.BoxGeometry(1.5,2.5,0.12), trimMat);
+  doorPanel.position.set(-2.85,1.35,-2.15);
+  doorPanel.rotation.y = Math.PI/2 - 0.25;
+  g.add(doorPanel);
+
+  g.add(makeShadowBlob(3.6));
+  g.scale.set(1.5,1.5,1.5);
+  return enableShadows(g);
+}
+
+function makeAnvilMesh(repaired){
+  const g = new THREE.Group();
+  const steelMat = repaired
+    ? new THREE.MeshStandardMaterial({color:0x9aa0a6, metalness:0.7, roughness:0.35})
+    : new THREE.MeshStandardMaterial({color:0x7a6a5a, metalness:0.3, roughness:0.85});
+  const rustMat = new THREE.MeshStandardMaterial({color:0x9a5a3a, metalness:0.2, roughness:0.9});
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.35,0.5), steelMat);
+  base.position.y = 0.175; g.add(base);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.32,0.55), steelMat);
+  body.position.y = 0.52; g.add(body);
+  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.55,8), steelMat);
+  horn.rotation.z = Math.PI/2; horn.position.set(0.62,0.55,0); g.add(horn);
+
+  if(!repaired){
+    // cracked/patched look — rusty seams and a slight tilt until it's fixed
+    body.rotation.z = 0.12;
+    horn.rotation.x = 0.08;
+    [[-0.15,0.62,0.29],[0.1,0.45,-0.29],[0.3,0.68,0.05]].forEach(([x,y,z])=>{
+      const crack = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.03,0.03), rustMat);
+      crack.position.set(x,y,z); crack.rotation.y = rand(0,Math.PI);
+      g.add(crack);
+    });
+  }
+  g.add(makeShadowBlob(0.55));
+  g.scale.set(2.1,2.1,2.1);
+  return g;
+}
+
+function makeAnvilPieceMesh(){
+  const g = new THREE.Group();
+  const rustMat = sharedMat('anvilPieceRust', ()=>new THREE.MeshStandardMaterial({color:0x8a5a3a, metalness:0.3, roughness:0.8}));
+  const chunk = new THREE.Mesh(sharedGeo('anvilPieceChunk', ()=>new THREE.DodecahedronGeometry(0.22,0)), rustMat);
+  chunk.position.y = 0.2; chunk.rotation.set(rand(0,Math.PI),rand(0,Math.PI),rand(0,Math.PI));
+  g.add(chunk);
+  const glow = new THREE.PointLight(0xe2a33c, 0.6, 4, 2);
+  glow.position.y = 0.3; g.add(glow);
+  g.add(makeShadowBlob(0.3));
+  g.scale.set(1.9,1.9,1.9);
+  return g;
+}
+
+function makeSpearMesh(){
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.045,1.3,6), new THREE.MeshStandardMaterial({color:0x5a3d24}));
+  shaft.position.y = 0.0;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07,0.28,6), new THREE.MeshStandardMaterial({color:0xc7cdd2, metalness:0.5, roughness:0.4}));
+  tip.position.y = 0.79;
+  g.add(shaft); g.add(tip);
+  g.rotation.z = Math.PI*0.42;
+  g.position.set(0.62,1.05,0.18);
+  return g;
+}
+
+function makeStumpMesh(){
+  const geo = sharedGeo('stump', ()=>new THREE.CylinderGeometry(0.3,0.35,0.35,8));
+  const mat = sharedMat('stump', ()=>new THREE.MeshStandardMaterial({color:0x4a3420}));
+  const stump = new THREE.Mesh(geo, mat);
+  stump.position.y = 0.18;
+  return stump;
+}
+
+function makeShadowBlob(radius){
+  const geo = sharedGeo('shadowBlob'+radius, ()=>new THREE.CircleGeometry(radius,12));
+  const mat = sharedMat('shadowBlob', ()=>new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:0.28}));
+  const m = new THREE.Mesh(geo, mat);
+  m.rotation.x = -Math.PI/2; m.position.y = 0.02;
+  return m;
+}
+
+function makeCampfireMesh(){
+  const g = new THREE.Group();
+
+  // scorched earth patch under the fire
+  const scorch = new THREE.Mesh(new THREE.CircleGeometry(1.6,16), new THREE.MeshBasicMaterial({color:0x1a1410, transparent:true, opacity:0.55}));
+  scorch.rotation.x = -Math.PI/2; scorch.position.y = 0.015;
+  g.add(scorch);
+
+  // ring of stones
+  const ringMat = new THREE.MeshStandardMaterial({color:0x6a6a66});
+  for(let i=0;i<10;i++){
+    const ang = (i/10)*Math.PI*2;
+    const s = 0.18+Math.random()*0.09;
+    const stone = new THREE.Mesh(new THREE.SphereGeometry(s,7,6), ringMat);
+    stone.position.set(Math.cos(ang)*1.25, s*0.8, Math.sin(ang)*1.25);
+    stone.scale.y = 0.75;
+    g.add(stone);
+  }
+
+  // teepee stack of logs
+  const logMat = new THREE.MeshStandardMaterial({color:0x4a3420});
+  const logCount = 6;
+  for(let i=0;i<logCount;i++){
+    const ang = (i/logCount)*Math.PI*2;
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.1,1.5,6), logMat);
+    log.position.set(Math.cos(ang)*0.18, 0.55, Math.sin(ang)*0.18);
+    log.rotation.z = Math.cos(ang)*0.55;
+    log.rotation.x = Math.sin(ang)*0.55;
+    g.add(log);
+  }
+  // a few crossed base logs (charred, darker)
+  const charMat = new THREE.MeshStandardMaterial({color:0x2a1e14});
+  [0.5,-0.5].forEach(rot=>{
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1.7,6), charMat);
+    log.rotation.z = Math.PI/2; log.rotation.y = rot;
+    log.position.y = 0.16;
+    g.add(log);
+  });
+
+  // layered flame (core, mid, tip) — scales/dims with fuel level
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.4,1.1,10),
+    new THREE.MeshBasicMaterial({color:0xe25a20, transparent:true, opacity:0.85}));
+  flame.position.y = 0.75; g.add(flame);
+  const flame2 = new THREE.Mesh(new THREE.ConeGeometry(0.26,0.8,10),
+    new THREE.MeshBasicMaterial({color:0xffa030, transparent:true, opacity:0.9}));
+  flame2.position.y = 0.85; g.add(flame2);
+  const flame3 = new THREE.Mesh(new THREE.ConeGeometry(0.13,0.5,8),
+    new THREE.MeshBasicMaterial({color:0xffe27a, transparent:true, opacity:0.95}));
+  flame3.position.y = 0.95; g.add(flame3);
+
+  // rising embers
+  const emberData = [];
+  const embPos = [];
+  for(let i=0;i<28;i++){
+    emberData.push({a:Math.random()*Math.PI*2, r:Math.random()*0.3, y:Math.random()*1.8, s:0.5+Math.random()*1.0});
+    embPos.push(0,0,0);
+  }
+  const embGeo = new THREE.BufferGeometry();
+  embGeo.setAttribute('position', new THREE.Float32BufferAttribute(embPos,3));
+  const emberPoints = new THREE.Points(embGeo, new THREE.PointsMaterial({color:0xffb050, size:0.13, transparent:true, opacity:0.9}));
+  g.add(emberPoints);
+
+  // warm glow light
+  const light = new THREE.PointLight(0xffa040, 1.4, 24, 2);
+  light.position.y = 1.1;
+  g.add(light);
+
+  g.userData.flame = flame;
+  g.userData.flame2 = flame2;
+  g.userData.flame3 = flame3;
+  g.userData.light = light;
+  g.userData.emberPoints = emberPoints;
+  g.userData.emberData = emberData;
+  return g;
+}
+
+function makeMonsterMesh(withLight){
+  const g = new THREE.Group();
+  const furMat = sharedMat('monsterFur', ()=>new THREE.MeshStandardMaterial({color:0x4a4038, roughness:1}));
+  const darkFurMat = sharedMat('monsterDarkFur', ()=>new THREE.MeshStandardMaterial({color:0x241f1a, roughness:1}));
+
+  // hunched, muscular torso leaning forward on all fours
+  const torso = new THREE.Mesh(sharedGeo('monsterTorso', ()=>new THREE.SphereGeometry(0.55,9,7)), furMat);
+  torso.scale.set(1.05,1.25,0.85);
+  torso.position.set(0,1.05,0.05);
+  torso.rotation.x = 0.35;
+  g.add(torso);
+
+  // raised shoulder hackles / mane
+  const mane = new THREE.Mesh(sharedGeo('monsterMane', ()=>new THREE.SphereGeometry(0.48,8,6)), darkFurMat);
+  mane.scale.set(1.15,0.75,1);
+  mane.position.set(0,1.55,-0.18);
+  g.add(mane);
+  const spikeGeo = sharedGeo('monsterSpike', ()=>new THREE.ConeGeometry(0.045,0.32,4));
+  for(let i=0;i<5;i++){
+    const spike = new THREE.Mesh(spikeGeo, darkFurMat);
+    spike.position.set((i-2)*0.14, 1.85, -0.2+Math.random()*0.1);
+    spike.rotation.x = -0.3+Math.random()*0.3;
+    g.add(spike);
+  }
+
+  // snarling head, snout pushed forward
+  const head = new THREE.Mesh(sharedGeo('monsterHead', ()=>new THREE.SphereGeometry(0.3,8,7)), furMat);
+  head.scale.set(0.9,0.85,1.1);
+  head.position.set(0,1.5,0.5);
+  g.add(head);
+  const snout = new THREE.Mesh(sharedGeo('monsterSnout', ()=>new THREE.ConeGeometry(0.16,0.42,6)), furMat);
+  snout.rotation.x = Math.PI/2;
+  snout.position.set(0,1.4,0.82);
+  g.add(snout);
+
+  // bared teeth
+  const toothMat = sharedMat('monsterTooth', ()=>new THREE.MeshStandardMaterial({color:0xe8e2d0}));
+  const toothGeo = sharedGeo('monsterTooth', ()=>new THREE.ConeGeometry(0.028,0.13,4));
+  [[-0.09,1.32,0.92],[0.09,1.32,0.92],[-0.05,1.28,1.0],[0.05,1.28,1.0]].forEach(([x,y,z])=>{
+    const tooth = new THREE.Mesh(toothGeo, toothMat);
+    tooth.rotation.x = Math.PI;
+    tooth.position.set(x,y,z);
+    g.add(tooth);
+  });
+
+  // low, dim amber eyes — reads at night, doesn't scream "supernatural" by day.
+  // Uses an unlit (MeshBasicMaterial) glow instead of a real light so it still
+  // reads at night without the GPU/shader cost of a dynamic PointLight per monster.
+  const eyeMat = sharedMat('monsterEye', ()=>new THREE.MeshBasicMaterial({color:0xffa838}));
+  const eyeGeo = sharedGeo('monsterEye', ()=>new THREE.SphereGeometry(0.05,6,6));
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.13,1.56,0.76); eyeL.name='eye';
+  const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.13,1.56,0.76); eyeR.name='eye';
+  g.add(eyeL); g.add(eyeR);
+
+  // real dynamic PointLights are expensive and force shader recompiles across
+  // the whole scene whenever the light count changes — only give one to the
+  // giant (there's ever only one at a time), not to every regular monster/guard.
+  if(withLight){
+    const eyeLight = new THREE.PointLight(0xffa838, 0.55, 6, 2);
+    eyeLight.position.set(0,1.56,0.72);
+    g.add(eyeLight);
+    g.userData.eyeLight = eyeLight;
+  }
+
+  // long, clawed arms reaching forward
+  const clawMat = sharedMat('monsterClaw', ()=>new THREE.MeshStandardMaterial({color:0x1c1712}));
+  const armGeo = sharedGeo('monsterArm', ()=>new THREE.CylinderGeometry(0.09,0.13,1.0,6));
+  const clawGeo = sharedGeo('monsterClaw', ()=>new THREE.ConeGeometry(0.045,0.24,4));
+  [-1,1].forEach(side=>{
+    const arm = new THREE.Mesh(armGeo, furMat);
+    arm.position.set(side*0.5,0.92,0.5);
+    arm.rotation.z = side<0? 0.75 : -0.75;
+    arm.rotation.x = -0.45;
+    g.add(arm);
+    for(let c=0;c<3;c++){
+      const claw = new THREE.Mesh(clawGeo, clawMat);
+      claw.position.set(side*0.85+(c-1)*0.08, 0.42, 0.85);
+      claw.rotation.x = 1.5;
+      g.add(claw);
+    }
+  });
+
+  // crouched hind legs
+  const legGeo = sharedGeo('monsterLeg', ()=>new THREE.CylinderGeometry(0.13,0.16,0.7,6));
+  [-1,1].forEach(side=>{
+    const leg = new THREE.Mesh(legGeo, furMat);
+    leg.position.set(side*0.28,0.4,-0.2);
+    g.add(leg);
+  });
+
+  g.add(makeShadowBlob(0.78));
+  return enableShadows(g);
+}
+
+// a rarer, tougher variant that only shows up on war nights — same build as
+// a regular monster but sickly green, with a glowing eye light since there's
+// only ever one or two on screen at once.
+function makeZombieMesh(){
+  const g = new THREE.Group();
+  const furMat = sharedMat('zombieFur', ()=>new THREE.MeshStandardMaterial({color:0x4a5c3a, roughness:1}));
+  const darkFurMat = sharedMat('zombieDarkFur', ()=>new THREE.MeshStandardMaterial({color:0x1e2818, roughness:1}));
+
+  const torso = new THREE.Mesh(sharedGeo('monsterTorso', ()=>new THREE.SphereGeometry(0.55,9,7)), furMat);
+  torso.scale.set(1.05,1.25,0.85);
+  torso.position.set(0,1.05,0.05);
+  torso.rotation.x = 0.35;
+  g.add(torso);
+
+  const mane = new THREE.Mesh(sharedGeo('monsterMane', ()=>new THREE.SphereGeometry(0.48,8,6)), darkFurMat);
+  mane.scale.set(1.15,0.75,1);
+  mane.position.set(0,1.55,-0.18);
+  g.add(mane);
+  const spikeGeo = sharedGeo('monsterSpike', ()=>new THREE.ConeGeometry(0.045,0.32,4));
+  for(let i=0;i<5;i++){
+    const spike = new THREE.Mesh(spikeGeo, darkFurMat);
+    spike.position.set((i-2)*0.14, 1.85, -0.2+Math.random()*0.1);
+    spike.rotation.x = -0.3+Math.random()*0.3;
+    g.add(spike);
+  }
+
+  const head = new THREE.Mesh(sharedGeo('monsterHead', ()=>new THREE.SphereGeometry(0.3,8,7)), furMat);
+  head.scale.set(0.9,0.85,1.1);
+  head.position.set(0,1.5,0.5);
+  g.add(head);
+  const snout = new THREE.Mesh(sharedGeo('monsterSnout', ()=>new THREE.ConeGeometry(0.16,0.42,6)), furMat);
+  snout.rotation.x = Math.PI/2;
+  snout.position.set(0,1.4,0.82);
+  g.add(snout);
+
+  const toothMat = sharedMat('monsterTooth', ()=>new THREE.MeshStandardMaterial({color:0xe8e2d0}));
+  const toothGeo = sharedGeo('monsterTooth', ()=>new THREE.ConeGeometry(0.028,0.13,4));
+  [[-0.09,1.32,0.92],[0.09,1.32,0.92],[-0.05,1.28,1.0],[0.05,1.28,1.0]].forEach(([x,y,z])=>{
+    const tooth = new THREE.Mesh(toothGeo, toothMat);
+    tooth.rotation.x = Math.PI;
+    tooth.position.set(x,y,z);
+    g.add(tooth);
+  });
+
+  // sickly glowing green eyes, with a real light since zombies are rare
+  const eyeMat = sharedMat('zombieEye', ()=>new THREE.MeshBasicMaterial({color:0x7aff5a}));
+  const eyeGeo = sharedGeo('monsterEye', ()=>new THREE.SphereGeometry(0.05,6,6));
+  const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.13,1.56,0.76); eyeL.name='eye';
+  const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.13,1.56,0.76); eyeR.name='eye';
+  g.add(eyeL); g.add(eyeR);
+  const eyeLight = new THREE.PointLight(0x7aff5a, 0.7, 6, 2);
+  eyeLight.position.set(0,1.56,0.72);
+  g.add(eyeLight);
+  g.userData.eyeLight = eyeLight;
+
+  const clawMat = sharedMat('monsterClaw', ()=>new THREE.MeshStandardMaterial({color:0x1c1712}));
+  const armGeo = sharedGeo('monsterArm', ()=>new THREE.CylinderGeometry(0.09,0.13,1.0,6));
+  const clawGeo = sharedGeo('monsterClaw', ()=>new THREE.ConeGeometry(0.045,0.24,4));
+  [-1,1].forEach(side=>{
+    const arm = new THREE.Mesh(armGeo, furMat);
+    arm.position.set(side*0.5,0.92,0.5);
+    arm.rotation.z = side<0? 0.75 : -0.75;
+    arm.rotation.x = -0.45;
+    g.add(arm);
+    for(let c=0;c<3;c++){
+      const claw = new THREE.Mesh(clawGeo, clawMat);
+      claw.position.set(side*0.85+(c-1)*0.08, 0.42, 0.85);
+      claw.rotation.x = 1.5;
+      g.add(claw);
+    }
+  });
+
+  const legGeo = sharedGeo('monsterLeg', ()=>new THREE.CylinderGeometry(0.13,0.16,0.7,6));
+  [-1,1].forEach(side=>{
+    const leg = new THREE.Mesh(legGeo, furMat);
+    leg.position.set(side*0.28,0.4,-0.2);
+    g.add(leg);
+  });
+
+  g.add(makeShadowBlob(0.78));
+  return enableShadows(g);
+}
+
+function makeGiantMesh(){
+  // a huge, night-only terror — built from the same monster rig, scaled up
+  // and darkened, with a fiercer red glow so it's unmistakable in the dark.
+  const g = makeMonsterMesh(true);
+  g.scale.set(GIANT_SCALE, GIANT_SCALE, GIANT_SCALE);
+  g.traverse(obj=>{
+    if(obj.material && obj.material.color && obj instanceof THREE.Mesh){
+      obj.material = obj.material.clone();
+      if(obj.name==='eye') obj.material.color.setHex(0xff2a1a);
+      else obj.material.color.multiplyScalar(0.4);
+    }
+  });
+  if(g.userData.eyeLight){
+    g.userData.eyeLight.color.setHex(0xff2a1a);
+    g.userData.eyeLight.intensity = 2.4;
+    g.userData.eyeLight.distance = 16;
+  }
+  // extra jagged spikes along the back for a heavier, more monstrous silhouette
+  const spikeMat = new THREE.MeshStandardMaterial({color:0x100c08, roughness:1});
+  for(let i=0;i<7;i++){
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06,0.5,4), spikeMat);
+    spike.position.set((i-3)*0.16, 1.95, -0.3+Math.random()*0.15);
+    spike.rotation.x = -0.35+Math.random()*0.3;
+    g.add(spike);
+  }
+  const dread = new THREE.PointLight(0xff2a1a, 0.8, 26, 2);
+  dread.position.y = 1.3;
+  g.add(dread);
+  g.userData.dreadLight = dread;
+  return g;
+}
+
+function makeBoundaryRing(){
+  const g = new THREE.Group();
+
+  // the visible safe-zone line on the ground — this is the boundary itself
+  const ringGeo = new THREE.RingGeometry(SETTINGS.fireWarmRadius-0.2, SETTINGS.fireWarmRadius+0.2, 96);
+  const ringMat = new THREE.MeshBasicMaterial({color:0xffa030, transparent:true, opacity:0.8, side:THREE.DoubleSide, depthWrite:false});
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = -Math.PI/2; ring.position.y = 0.06;
+  g.add(ring);
+
+  // a faint glowing curtain of firelight rising from the boundary line
+  const wallGeo = new THREE.CylinderGeometry(SETTINGS.fireWarmRadius, SETTINGS.fireWarmRadius, 3.4, 72, 1, true);
+  const wallMat = new THREE.MeshBasicMaterial({color:0xffa030, transparent:true, opacity:0.07, side:THREE.DoubleSide, depthWrite:false});
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.position.y = 1.7;
+  g.add(wall);
+
+  g.userData.ring = ring;
+  g.userData.wall = wall;
+  return g;
+}
+
+function makeKeyMesh(){
+  const g = new THREE.Group();
+  const goldMat = new THREE.MeshStandardMaterial({color:0xe2c469, metalness:0.7, roughness:0.3, emissive:0x5a4310, emissiveIntensity:0.4});
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22,0.055,8,16), goldMat);
+  ring.rotation.x = Math.PI/2; ring.position.y = 0.55;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.5,8), goldMat);
+  shaft.rotation.z = Math.PI/2; shaft.position.set(0.4,0.55,0);
+  const tooth1 = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.09,0.05), goldMat);
+  tooth1.position.set(0.62,0.42,0);
+  const tooth2 = new THREE.Mesh(new THREE.BoxGeometry(0.09,0.09,0.05), goldMat);
+  tooth2.position.set(0.78,0.42,0);
+  g.add(ring); g.add(shaft); g.add(tooth1); g.add(tooth2);
+  const glow = new THREE.PointLight(0xe2c469, 1.1, 6, 2);
+  glow.position.y = 0.55; g.add(glow);
+  g.add(makeShadowBlob(0.4));
+  g.userData.glow = glow;
+  return g;
+}
+
+function makeMonsterDenMesh(){
+  const g = new THREE.Group();
+  const rockMat = new THREE.MeshStandardMaterial({color:0x4a4438, roughness:1});
+  // jagged cave mouth of stacked boulders
+  const boulderSpots = [[-3.2,0,-1.5],[-2.4,0,1.8],[2.6,0,1.6],[3.3,0,-1.2],[0,0,-3.0],[-4.2,0,0.2],[4.3,0,0.4]];
+  boulderSpots.forEach(([x,y,z])=>{
+    const s = 1.1+Math.random()*0.8;
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s,0), rockMat);
+    rock.position.set(x, s*0.5, z);
+    rock.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+    g.add(rock);
+  });
+  // dark cave mouth
+  const mouth = new THREE.Mesh(new THREE.CircleGeometry(1.7,16), new THREE.MeshBasicMaterial({color:0x0a0806}));
+  mouth.position.set(0,1.4,-1.4);
+  g.add(mouth);
+  // bone markers scattered at the entrance
+  const boneMat = new THREE.MeshStandardMaterial({color:0xd8cfa8});
+  for(let i=0;i<6;i++){
+    const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.6,5), boneMat);
+    bone.position.set(rand(-3,3),0.08,rand(-1,3));
+    bone.rotation.z = Math.PI/2; bone.rotation.y = Math.random()*Math.PI;
+    g.add(bone);
+  }
+  g.add(makeShadowBlob(4.5));
+  return g;
+}
+
+function makeJailCageMesh(){
+  const g = new THREE.Group();
+  const barMat = new THREE.MeshStandardMaterial({color:0x2a2a2a, metalness:0.3, roughness:0.7});
+  const radius = 1.7, barCount = 10, barH = 2.6;
+  for(let i=0;i<barCount;i++){
+    const ang = (i/barCount)*Math.PI*2;
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,barH,6), barMat);
+    bar.position.set(Math.sin(ang)*radius, barH/2, Math.cos(ang)*radius);
+    g.add(bar);
+  }
+  const topRing = new THREE.Mesh(new THREE.TorusGeometry(radius,0.06,6,16), barMat);
+  topRing.rotation.x = Math.PI/2; topRing.position.y = barH;
+  g.add(topRing);
+  const baseRing = new THREE.Mesh(new THREE.TorusGeometry(radius,0.05,6,16), barMat);
+  baseRing.rotation.x = Math.PI/2; baseRing.position.y = 0.04;
+  g.add(baseRing);
+  g.add(makeShadowBlob(radius+0.6));
+  return enableShadows(g);
+}
+
+function makeFriendMesh(clothColor){
+  const g = makeHumanoid({skin:0xd9b38c, cloth:clothColor, dark:0x2a2420});
+  g.userData.parts.armL.rotation.z = 0.3;
+  g.userData.parts.armR.rotation.z = -0.3;
+  // freed friends carry a spear too, same as the player — it rides on their
+  // right arm so it swings naturally with animateWalk/animateSpearSwing
+  const spear = makeSpearMesh();
+  g.userData.parts.armR.add(spear);
+  spear.position.set(0,-0.5,0.1);
+  g.userData.spear = spear;
+  return g;
+}
+
+function makeDoorMesh(){
+  const g = new THREE.Group();
+  const frameMat = new THREE.MeshStandardMaterial({color:0x3a2a1c});
+  const postL = new THREE.Mesh(new THREE.BoxGeometry(0.4,3.2,0.4), frameMat); postL.position.set(-0.95,1.6,0);
+  const postR = new THREE.Mesh(new THREE.BoxGeometry(0.4,3.2,0.4), frameMat); postR.position.set(0.95,1.6,0);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(2.3,0.4,0.4), frameMat); lintel.position.set(0,3.2,0);
+  g.add(postL); g.add(postR); g.add(lintel);
+
+  const doorMat = new THREE.MeshStandardMaterial({color:0x5a3d24});
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.7,3.0,0.18), doorMat);
+  panel.position.set(0,1.5,0);
+  const handleMat = new THREE.MeshStandardMaterial({color:0xc7a63c, metalness:0.6, roughness:0.4});
+  const handle = new THREE.Mesh(new THREE.SphereGeometry(0.09,8,8), handleMat);
+  handle.position.set(0.6,1.5,0.14);
+  panel.add(handle);
+  g.add(panel);
+
+  // lock glow — red while locked, gold once the key is found
+  const lockLight = new THREE.PointLight(0xe2361a, 0.8, 5, 2);
+  lockLight.position.set(0.6,1.5,0.5);
+  g.add(lockLight);
+
+  g.userData.panel = panel;
+  g.userData.lockLight = lockLight;
+  return enableShadows(g);
+}
+
+/* ============================================================
+   WORLD STATE
+============================================================ */
+let world = null;
+
+function initWorld(){
+  world = {
+    player: {x:0, z:14, facing:0, walkT:0, speed:SETTINGS.playerSpeed, wood:0, saplings:0, scrap:0, bones:0, rabbitFoot:0, sheepWool:0, deerSkin:0, health:100, stamina:100, staminaLocked:false, animalsSeen:new Set(), hunted:0, hasKey:false, anvilPieces:0, gun:false, ammo:0, axeUpgraded:false, spearUpgraded:false,
+    torchBatteries:0, torchOn:false, torchSeconds:0},
+    trees: [],
+    animals: [],
+    scraps: [],
+    anvilPiecesWorld: [],
+    monsters: [],
+    fire: {x:0, z:0, fuel:100, wasSafe:true},
+    key: {x: MONSTER_HOME.x, z: MONSTER_HOME.z, collected:false, mesh:null},
+    door: {x: DOOR_POS.x, z: DOOR_POS.z, opened:false, mesh:null},
+    anvil: {x: ANVIL_POS.x, z: ANVIL_POS.z, repaired:false, mesh:null},
+    dayTime: 0, wasNight: false, daysSurvived: 1
+  };
+
+  world.playerMesh = makePlayerModel();
+  world.playerMesh.add(makeShadowBlob(0.55));
+  scene.add(world.playerMesh);
+
+  world.fireMesh = makeCampfireMesh();
+  world.fireMesh.position.set(world.fire.x, 0, world.fire.z);
+  scene.add(world.fireMesh);
+
+  world.boundaryMesh = makeBoundaryRing();
+  world.boundaryMesh.position.set(world.fire.x, 0, world.fire.z);
+  scene.add(world.boundaryMesh);
+
+  // trees, scattered but kept clear of the spawn point
+  for(let i=0;i<TREE_COUNT;i++){
+    let x,z;
+    do{
+      x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+      z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+    } while(Math.hypot(x,z) < 8);
+    const mesh = makeTreeMesh();
+    mesh.position.set(x,0,z);
+    scene.add(mesh);
+    world.trees.push({x,z,r:0.9,hp:5,cut:false,mesh});
+  }
+
+  // animals, wandering the forest peacefully
+  const animalHP = {rabbit:1, deer:2, sheep:3};
+  let animalIdCounter = 0;
+  const spawnAnimal = (type,count)=>{
+    for(let i=0;i<count;i++){
+      let x,z;
+      do{
+        x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+        z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+      } while(Math.hypot(x,z) < 12);
+      const mesh = makeAnimalModel(type);
+      mesh.position.set(x,0,z);
+      mesh.add(makeShadowBlob(type==='sheep'?0.8:(type==='deer'?0.6:0.4)));
+      scene.add(mesh);
+      world.animals.push({type,x,z,r:type==='sheep'?0.9:(type==='deer'?0.7:0.5),
+        vx:0,vz:0,wanderT:rand(0,3),facing:0,mesh,id:'a'+(animalIdCounter++),hp:animalHP[type]});
+    }
+  };
+  spawnAnimal('rabbit', 8);
+  spawnAnimal('deer', 6);
+  spawnAnimal('sheep', 4);
+  world.spawnAnimal = spawnAnimal;
+
+  // scrap, scattered metal debris to gather in your sack — respawns over time so it never runs out
+  const spawnScrap = (count)=>{
+    for(let i=0;i<count;i++){
+      let x,z;
+      do{
+        x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+        z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+      } while(Math.hypot(x,z) < 6);
+      const mesh = makeScrapMesh();
+      mesh.position.set(x,0,z);
+      scene.add(mesh);
+      world.scraps.push({x,z,mesh,collected:false});
+    }
+  };
+  spawnScrap(SCRAP_COUNT);
+  world.spawnScrap = spawnScrap;
+
+  // monsters, kept out in the deep forest — they only close in once the boundary drops
+  const spawnMonster = ()=>{
+    let x,z;
+    do{
+      x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+      z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+    } while(Math.hypot(x,z) < MONSTER_MIN_SPAWN_DIST);
+    const mesh = makeMonsterMesh();
+    mesh.position.set(x,0,z);
+    scene.add(mesh);
+    world.monsters.push({x,z,facing:0,wanderT:rand(0,3),vx:0,vz:0,mesh,hp:MONSTER_HP});
+  };
+  for(let i=0;i<SETTINGS.monsterCount;i++) spawnMonster();
+  world.spawnMonster = spawnMonster;
+
+  // the monster den — a guarded lair deep in the forest holding the only key
+  const denMesh = makeMonsterDenMesh();
+  denMesh.position.set(MONSTER_HOME.x, 0, MONSTER_HOME.z);
+  scene.add(denMesh);
+  world.denMesh = denMesh;
+
+  const spawnGuardAt = (homeX, homeZ, roamRadius, jailId)=>{
+    const ang = Math.random()*Math.PI*2;
+    const dist = rand(3, roamRadius||GUARD_ROAM_RADIUS);
+    const x = clamp(homeX + Math.sin(ang)*dist, -WORLD_HALF_X, WORLD_HALF_X);
+    const z = clamp(homeZ + Math.cos(ang)*dist, -WORLD_HALF_Z, WORLD_HALF_Z);
+    const mesh = makeMonsterMesh();
+    mesh.position.set(x,0,z);
+    scene.add(mesh);
+    world.monsters.push({x,z,facing:0,wanderT:rand(0,3),vx:0,vz:0,mesh,hp:GUARD_HP,
+      guard:true, homeX, homeZ, jailId});
+  };
+  for(let i=0;i<GUARD_COUNT;i++) spawnGuardAt(MONSTER_HOME.x, MONSTER_HOME.z);
+  world.spawnGuardAt = spawnGuardAt;
+
+  // the two captured friends — each held in a caged camp guarded by its own
+  // pack of monsters. defeat every guard at a camp, then walk up and press E
+  // to free the friend held there — they'll wait safe back at the campfire.
+  world.jails = [
+    {id:1, x:JAIL1_POS.x, z:JAIL1_POS.z, guardCount:JAIL1_GUARD_COUNT, guardsAlive:JAIL1_GUARD_COUNT, cleared:false, freed:false, cageMesh:null, friendMesh:null, friendUpgraded:false},
+    {id:2, x:JAIL2_POS.x, z:JAIL2_POS.z, guardCount:JAIL2_GUARD_COUNT, guardsAlive:JAIL2_GUARD_COUNT, cleared:false, freed:false, cageMesh:null, friendMesh:null, friendUpgraded:false},
+  ];
+  const friendCloths = [0x6a4fb0, 0x2a8a8a];
+  world.jails.forEach((jail, idx)=>{
+    const cage = makeJailCageMesh();
+    cage.position.set(jail.x, 0, jail.z);
+    scene.add(cage);
+    jail.cageMesh = cage;
+
+    const friendMesh = makeFriendMesh(friendCloths[idx]);
+    friendMesh.position.set(jail.x, 0, jail.z);
+    scene.add(friendMesh);
+    jail.friendMesh = friendMesh;
+
+    for(let i=0;i<jail.guardCount;i++) spawnGuardAt(jail.x, jail.z, undefined, jail.id);
+  });
+
+  // night horde — extra monsters that pour out of the deep forest once the
+  // sun goes down, on top of the regular ambient monsters and den guards.
+  // they're removed again at dawn so the forest doesn't stay overrun forever.
+  world.giant = null;
+  const spawnNightMonster = ()=>{
+    let x,z;
+    do{
+      x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+      z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+    } while(Math.hypot(x,z) < NIGHT_SPAWN_MIN_DIST);
+    const mesh = makeMonsterMesh();
+    mesh.position.set(x,0,z);
+    scene.add(mesh);
+    world.monsters.push({x,z,facing:0,wanderT:rand(0,3),vx:0,vz:0,mesh,hp:MONSTER_HP,nightOnly:true});
+  };
+  world.spawnNightMonster = spawnNightMonster;
+
+  // the giant — a single huge monster that only exists at night. it hunts
+  // across the whole map but, like every other monster, cannot cross the
+  // firelit boundary around camp.
+  const spawnGiant = ()=>{
+    if(world.giant) return;
+    let x,z;
+    do{
+      x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+      z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+    } while(Math.hypot(x,z) < SETTINGS.GIANT_MIN_SPAWN_DIST);
+    const mesh = makeGiantMesh();
+    mesh.position.set(x,0,z);
+    scene.add(mesh);
+    const giant = {x,z,facing:0,wanderT:rand(0,3),vx:0,vz:0,mesh,hp:SETTINGS.GIANT_HP,giant:true,nightOnly:true};
+    world.monsters.push(giant);
+    world.giant = giant;
+  };
+  world.spawnGiant = spawnGiant;
+
+  // zombies — rarer, tougher monsters that only show up on war nights
+  // (every 3rd, 5th, 7th, 9th... night). they behave like a regular
+  // night monster (hunt when close, damage over time) but take a lot
+  // more punishment, tracked as a percentage like the giant.
+  const spawnZombie = ()=>{
+    let x,z;
+    do{
+      x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+      z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+    } while(Math.hypot(x,z) < NIGHT_SPAWN_MIN_DIST);
+    const mesh = makeZombieMesh();
+    mesh.position.set(x,0,z);
+    scene.add(mesh);
+    world.monsters.push({x,z,facing:0,wanderT:rand(0,3),vx:0,vz:0,mesh,hp:SETTINGS.ZOMBIE_HP,zombie:true,nightOnly:true});
+  };
+  world.spawnZombie = spawnZombie;
+
+  // dawn clears the night horde and the giant out of the world
+  world.despawnNightMonsters = ()=>{
+    world.monsters = world.monsters.filter(m=>{
+      if(m.nightOnly){ scene.remove(m.mesh); disposeObject3D(m.mesh); return false; }
+      return true;
+    });
+    world.giant = null;
+  };
+
+  // the single key, sitting at the heart of the den
+  const keyMesh = makeKeyMesh();
+  keyMesh.position.set(world.key.x, 0, world.key.z);
+  scene.add(keyMesh);
+  world.key.mesh = keyMesh;
+
+  // the exit door, far across the forest from the den
+  const doorMesh = makeDoorMesh();
+  doorMesh.position.set(world.door.x, 0, world.door.z);
+  const doorFacing = Math.atan2(world.fire.x-world.door.x, world.fire.z-world.door.z);
+  doorMesh.rotation.y = doorFacing;
+  scene.add(doorMesh);
+  world.door.mesh = doorMesh;
+
+  // the house, out in the forest, with a broken anvil waiting inside
+  const houseMesh = makeHouseMesh();
+  houseMesh.position.set(HOUSE_POS.x, 0, HOUSE_POS.z);
+  const houseFacing = Math.atan2(world.fire.x-HOUSE_POS.x, world.fire.z-HOUSE_POS.z);
+  houseMesh.rotation.y = houseFacing;
+  scene.add(houseMesh);
+  world.houseMesh = houseMesh;
+
+  const anvilMesh = makeAnvilMesh(false);
+  anvilMesh.position.set(world.anvil.x, 0, world.anvil.z);
+  scene.add(anvilMesh);
+  world.anvil.mesh = anvilMesh;
+
+  // 3 broken anvil pieces, scattered out in the forest to be found and carried home
+  for(let i=0;i<SETTINGS.ANVIL_PIECE_COUNT;i++){
+    let x,z;
+    do{
+      x = rand(-WORLD_HALF_X, WORLD_HALF_X);
+      z = rand(-WORLD_HALF_Z, WORLD_HALF_Z);
+    } while(Math.hypot(x,z) < ANVIL_PIECE_MIN_DIST || Math.hypot(x-HOUSE_POS.x,z-HOUSE_POS.z) < 6);
+    const mesh = makeAnvilPieceMesh();
+    mesh.position.set(x,0,z);
+    scene.add(mesh);
+    world.anvilPiecesWorld.push({x,z,mesh,collected:false});
+  }
+}
+
+/* ============================================================
+   INPUT
+============================================================ */
+let keys = {};
+let mouse = {down:false, lastX:0, lastY:0};
+let camYaw = Math.PI, camPitch = 0.55, camDist = 9;
+let fpPitch = 0; // first-person look pitch (radians)
+let viewMode = 'third'; // 'third' or 'first'
+let touchVec = {x:0, z:0};
+let touchSprintHeld = false;
+let touchChopPressed = false;
+let mapOpen = false;
+let cutsceneActive = false;
+let paused = false;
+function playGiantCutscene(){
+  cutsceneActive = true;
+  const el = document.getElementById('giantCutscene');
+  el.classList.add('show');
+  setTimeout(()=>{
+    el.classList.remove('show');
+    cutsceneActive = false;
+  }, 3400);
+}
+
+function playSceneSequence(overlayId, sceneMs, onDone){
+  cutsceneActive = true;
+  const el = document.getElementById(overlayId);
+  el.classList.add('show');
+  const scenes = el.querySelectorAll('.story-scene');
+  let i = 0;
+  function step(){
+    scenes.forEach(s=>s.classList.remove('active'));
+    if(i < scenes.length){
+      // force reflow so the CSS animations on the newly-active scene restart
+      void scenes[i].offsetWidth;
+      scenes[i].classList.add('active');
+      i++;
+      setTimeout(step, sceneMs);
+    } else {
+      el.classList.remove('show');
+      cutsceneActive = false;
+      if(onDone) onDone();
+    }
+  }
+  step();
+}
+
+function playIntroCutscene(onDone){
+  playSceneSequence('storyCutscene', 3400, onDone);
+}
+
+function playDeathCutscene(onDone){
+  playSceneSequence('deathCutscene', 2000, onDone);
+}
+
+function toggleView(){
+  viewMode = viewMode==='third' ? 'first' : 'third';
+  world.playerMesh.visible = (viewMode==='third');
+  toast(viewMode==='first' ? 'First-person view' : 'Third-person view');
+}
+
+let hudVisible = true;
+function toggleHud(){
+  hudVisible = !hudVisible;
+  document.getElementById('hud').classList.toggle('hud-hidden', !hudVisible);
+  document.getElementById('hudToggleHint').classList.toggle('show', !hudVisible);
+}
+
+window.addEventListener('keydown', e=>{
+  keys[e.key.toLowerCase()] = true;
+  if(e.key.toLowerCase()==='z'){ togglePause(); return; }
+  if(paused) return;
+  if(e.key.toLowerCase()==='m') toggleMap();
+  if(e.key.toLowerCase()==='e') tryInteractE();
+  if(e.key.toLowerCase()==='r') tryHunt('spear');
+  if(e.key.toLowerCase()==='g') tryHunt('gun');
+  if(e.key.toLowerCase()==='x') tryHunt('target');
+  if(e.key.toLowerCase()==='p') tryPlantSapling();
+  if(e.key.toLowerCase()==='v') toggleView();
+  if(e.key.toLowerCase()==='f') tryFeedFire();
+  if(e.key.toLowerCase()==='b') toggleHud();
+  if(e.key==='1') craftGun();
+  if(e.key==='2') craftAmmo();
+  if(e.key==='3') craftAxeUpgrade();
+  if(e.key==='4') craftSpearUpgrade();
+  if(e.key==='5') craftFriendUpgrade(1);
+  if(e.key==='6') craftFriendUpgrade(2);
+  if(e.key==='7') craftTorchBattery();
+  if(e.key.toLowerCase()==='t') toggleTorch();
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+
+// cached DOM refs for anything touched every animation frame — avoids
+// hundreds of getElementById lookups per second in the hot loop.
+const UI = {
+  huntHint: document.getElementById('huntHint'),
+  giantWarning: document.getElementById('giantWarning'),
+  giantHealthBar: document.getElementById('giantHealthBar'),
+  ghbFill: document.getElementById('ghbFill'),
+  keyHint: document.getElementById('keyHint'),
+  doorHint: document.getElementById('doorHint'),
+  friendHint: document.getElementById('friendHint'),
+  friendsFreedCount: document.getElementById('friendsFreedCount'),
+  anvilHint: document.getElementById('anvilHint'),
+  anvilUpgradePanel: document.getElementById('anvilUpgradePanel'),
+  aupGun: document.getElementById('aupGun'),
+  aupAmmo: document.getElementById('aupAmmo'),
+  aupAxe: document.getElementById('aupAxe'),
+  aupSpear: document.getElementById('aupSpear'),
+  aupFriend1: document.getElementById('aupFriend1'),
+  aupFriend2: document.getElementById('aupFriend2'),
+  aupTorch: document.getElementById('aupTorch'),
+  torchBatteryCount: document.getElementById('torchBatteryCount'),
+  torchFill: document.getElementById('torchFill'),
+  chopHint: document.getElementById('chopHint'),
+  fireHint: document.getElementById('fireHint'),
+  woodCount: document.getElementById('woodCount'),
+  saplingCount: document.getElementById('saplingCount'),
+  scrapCount: document.getElementById('scrapCount'),
+  boneCount: document.getElementById('boneCount'),
+  rabbitFootCount: document.getElementById('rabbitFootCount'),
+  sheepWoolCount: document.getElementById('sheepWoolCount'),
+  deerSkinCount: document.getElementById('deerSkinCount'),
+  anvilPieceCount: document.getElementById('anvilPieceCount'),
+  axeStatus: document.getElementById('axeStatus'),
+  spearStatus: document.getElementById('spearStatus'),
+  friend1Status: document.getElementById('friend1Status'),
+  friend2Status: document.getElementById('friend2Status'),
+  gunStatus: document.getElementById('gunStatus'),
+  ammoCount: document.getElementById('ammoCount'),
+  animalCount: document.getElementById('animalCount'),
+  huntedCount: document.getElementById('huntedCount'),
+  dayCount: document.getElementById('dayCount'),
+  phaseLabel: document.getElementById('phaseLabel'),
+  phaseTimer: document.getElementById('phaseTimer'),
+  keyStatus: document.getElementById('keyStatus'),
+  boundaryStatus: document.getElementById('boundaryStatus'),
+  healthFill: document.getElementById('healthFill'),
+  fireFill: document.getElementById('fireFill'),
+  speedFill: document.getElementById('speedFill'),
+  cooldownFill: document.getElementById('cooldownFill'),
+};
+
+const canvasEl = document.getElementById('three-canvas');
+canvasEl.addEventListener('mousedown', e=>{ mouse.down=true; mouse.lastX=e.clientX; mouse.lastY=e.clientY; });
+window.addEventListener('mouseup', ()=>{ mouse.down=false; });
+window.addEventListener('mousemove', e=>{
+  if(!mouse.down) return;
+  const dx = e.clientX-mouse.lastX, dy = e.clientY-mouse.lastY;
+  mouse.lastX=e.clientX; mouse.lastY=e.clientY;
+  camYaw -= dx*0.006;
+  if(viewMode==='first') fpPitch = clamp(fpPitch - dy*0.005, -1.2, 1.2);
+  else camPitch = clamp(camPitch - dy*0.005, 0.15, 1.3);
+});
+canvasEl.addEventListener('wheel', e=>{ camDist = clamp(camDist + e.deltaY*0.01, 4, 22); }, {passive:true});
+
+canvasEl.addEventListener('touchstart', e=>{
+  if(e.touches.length===1){ mouse.down=true; mouse.lastX=e.touches[0].clientX; mouse.lastY=e.touches[0].clientY; }
+});
+canvasEl.addEventListener('touchend', ()=>{ mouse.down=false; });
+canvasEl.addEventListener('touchmove', e=>{
+  if(!mouse.down || e.touches.length!==1) return;
+  const dx = e.touches[0].clientX-mouse.lastX, dy = e.touches[0].clientY-mouse.lastY;
+  mouse.lastX=e.touches[0].clientX; mouse.lastY=e.touches[0].clientY;
+  camYaw -= dx*0.008;
+  if(viewMode==='first') fpPitch = clamp(fpPitch - dy*0.006, -1.2, 1.2);
+  else camPitch = clamp(camPitch - dy*0.006, 0.15, 1.3);
+});
+
+// touch detection (best-effort default; the device-select screen lets the
+// player override this explicitly, since some mobile browsers report as
+// if they were a desktop and this feature test alone gets it wrong)
+if('ontouchstart' in window || navigator.maxTouchPoints > 0){ document.body.classList.add('touch-enabled'); }
+
+// virtual joystick
+const joyBase = document.getElementById('joyBase');
+const joyKnob = document.getElementById('joyKnob');
+let joyTouchId = null;
+const JOY_MAX = 42;
+joyBase.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  joyTouchId = t.identifier;
+});
+window.addEventListener('touchmove', e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===joyTouchId){
+      const rect = joyBase.getBoundingClientRect();
+      const cx = rect.left+rect.width/2, cy = rect.top+rect.height/2;
+      let dx = t.clientX-cx, dy = t.clientY-cy;
+      const len = Math.hypot(dx,dy);
+      if(len>JOY_MAX){ dx = dx/len*JOY_MAX; dy = dy/len*JOY_MAX; }
+      joyKnob.style.left = (35+dx)+'px'; joyKnob.style.top = (35+dy)+'px';
+      touchVec.x = dx/JOY_MAX; touchVec.z = dy/JOY_MAX;
+    }
+  }
+});
+window.addEventListener('touchend', e=>{
+  for(const t of e.changedTouches){
+    if(t.identifier===joyTouchId){
+      joyTouchId = null;
+      joyKnob.style.left='35px'; joyKnob.style.top='35px';
+      touchVec.x=0; touchVec.z=0;
+    }
+  }
+});
+
+const chopBtn = document.getElementById('chopBtn');
+chopBtn.addEventListener('touchstart', e=>{ e.preventDefault(); tryInteractE(); });
+
+const huntBtn = document.getElementById('huntBtn');
+huntBtn.addEventListener('touchstart', e=>{ e.preventDefault(); tryHunt('spear'); });
+
+const gunBtn = document.getElementById('gunBtn');
+gunBtn.addEventListener('touchstart', e=>{ e.preventDefault(); tryHunt('gun'); });
+
+const targetBtn = document.getElementById('targetBtn');
+targetBtn.addEventListener('touchstart', e=>{ e.preventDefault(); tryHunt('target'); });
+
+const sprintBtn = document.getElementById('btnSprint');
+sprintBtn.addEventListener('touchstart', e=>{ e.preventDefault(); touchSprintHeld=true; sprintBtn.style.background='rgba(60,120,180,0.6)'; });
+sprintBtn.addEventListener('touchend', e=>{ e.preventDefault(); touchSprintHeld=false; sprintBtn.style.background=''; });
+
+document.getElementById('btnMap').addEventListener('touchstart', e=>{ e.preventDefault(); toggleMap(); });
+document.getElementById('btnPause').addEventListener('touchstart', e=>{ e.preventDefault(); togglePause(); });
+document.getElementById('btnView').addEventListener('touchstart', e=>{ e.preventDefault(); toggleView(); });
+document.getElementById('btnHud').addEventListener('touchstart', e=>{ e.preventDefault(); toggleHud(); });
+document.getElementById('btnFeed').addEventListener('touchstart', e=>{ e.preventDefault(); tryFeedFire(); });
+document.getElementById('btnPlant').addEventListener('touchstart', e=>{ e.preventDefault(); tryPlantSapling(); });
+document.getElementById('btnCraftGun').addEventListener('touchstart', e=>{ e.preventDefault(); craftGun(); });
+document.getElementById('btnCraftAmmo').addEventListener('touchstart', e=>{ e.preventDefault(); craftAmmo(); });
+document.getElementById('btnUpgradeAxe').addEventListener('touchstart', e=>{ e.preventDefault(); craftAxeUpgrade(); });
+document.getElementById('btnUpgradeSpear').addEventListener('touchstart', e=>{ e.preventDefault(); craftSpearUpgrade(); });
+document.getElementById('btnUpgradeFriend1').addEventListener('touchstart', e=>{ e.preventDefault(); craftFriendUpgrade(1); });
+document.getElementById('btnUpgradeFriend2').addEventListener('touchstart', e=>{ e.preventDefault(); craftFriendUpgrade(2); });
+document.getElementById('btnTorch').addEventListener('touchstart', e=>{ e.preventDefault(); toggleTorch(); });
+document.getElementById('btnCraftTorch').addEventListener('touchstart', e=>{ e.preventDefault(); craftTorchBattery(); });
+
+/* ============================================================
+   SETTINGS PANEL (password: 2013)
+============================================================ */
+let settingsUnlockedThisSession = false;
+const settingsFields = ['playerSpeed','chopRange','fireDecayRate','healthChangeRate','fireWarmRadius',
+  'fireFeedGain','spearRange','spearHeal','plantGrowTime','monsterCount','monsterWanderSpeed',
+  'monsterChaseSpeed','monsterDetectRadius','monsterAttackRange','monsterDamagePerSec',
+  'monsterFleeRadius','monsterFleeSpeed','dayNightCycle',
+  'FRIEND_RESCUE_RANGE','FRIEND_SPEED_FACTOR','FRIEND_CHOP_INTERVAL','FRIEND_FEED_FUEL_THRESHOLD',
+  'FRIEND_AUTO_SAPLING_INTERVAL','FRIEND_UPGRADE_WOOD_COST','FRIEND_UPGRADE_SCRAP_COST',
+  'FRIEND_UPGRADE_BONE_COST','FRIEND_UPGRADE_RABBITFOOT_COST','FRIEND_UPGRADE_SHEEPWOOL_COST',
+  'FRIEND_UPGRADE_DEERSKIN_COST','FRIEND_UPGRADED_CHOP_DAMAGE','FRIEND_UPGRADED_ZOMBIE_DAMAGE_PCT',
+  'FRIEND_UPGRADED_SPEED_MULT','FRIEND_ZOMBIE_HIT_INTERVAL','FRIEND_ZOMBIE_RANGE',
+  'ANVIL_PIECE_COUNT','ANVIL_INTERACT_RANGE',
+  'TORCH_MAX_SECONDS','TORCH_BATTERY_SCRAP_COST','TORCH_BATTERY_BONE_COST','TORCH_FLEE_RADIUS','TORCH_FLEE_SPEED',
+  'WAR_NIGHT_ZOMBIE_COUNT_MIN','WAR_NIGHT_ZOMBIE_COUNT_MAX','ZOMBIE_HP','ZOMBIE_SPEAR_DAMAGE_PCT',
+  'ZOMBIE_GUN_DAMAGE_PCT','ZOMBIE_FRIEND_DAMAGE_PCT','ZOMBIE_HUNT_COOLDOWN',
+  'GIANT_HP','GIANT_GUN_DAMAGE_PCT','GIANT_BONE_DROP','GIANT_MIN_SPAWN_DIST','GIANT_DETECT_RADIUS',
+  'GIANT_CHASE_SPEED','GIANT_WANDER_SPEED','GIANT_ATTACK_RANGE','GIANT_HIT_DAMAGE','GIANT_HIT_INTERVAL'];
+
+function fillSettingsInputs(){
+  settingsFields.forEach(f=>{
+    const el = document.getElementById('s_'+f);
+    if(el) el.value = SETTINGS[f];
+  });
+}
+
+function openSettings(){
+  document.getElementById('settingsOverlay').classList.add('show');
+  document.getElementById('settingsErr').textContent = '';
+  if(settingsUnlockedThisSession){
+    document.getElementById('settingsLocked').style.display = 'none';
+    document.getElementById('settingsUnlocked').style.display = 'block';
+    fillSettingsInputs();
+  } else {
+    document.getElementById('settingsLocked').style.display = 'block';
+    document.getElementById('settingsUnlocked').style.display = 'none';
+    document.getElementById('settingsPw').value = '';
+  }
+}
+function closeSettings(){
+  document.getElementById('settingsOverlay').classList.remove('show');
+}
+
+document.getElementById('winCloseBtn').addEventListener('click', ()=>{
+  document.getElementById('winOverlay').classList.remove('show');
+});
+
+document.getElementById('settingsBtn').addEventListener('click', openSettings);
+document.getElementById('settingsCloseBtn1').addEventListener('click', closeSettings);
+document.getElementById('settingsCloseBtn2').addEventListener('click', closeSettings);
+
+document.getElementById('settingsUnlockBtn').addEventListener('click', ()=>{
+  const pw = document.getElementById('settingsPw').value;
+  if(pw === SETTINGS_PASSWORD){
+    settingsUnlockedThisSession = true;
+    document.getElementById('settingsLocked').style.display = 'none';
+    document.getElementById('settingsUnlocked').style.display = 'block';
+    fillSettingsInputs();
+  } else {
+    document.getElementById('settingsErr').textContent = 'Wrong password.';
+  }
+});
+
+function applySettings(){
+  const prevCount = SETTINGS.monsterCount;
+  const prevWarmRadius = SETTINGS.fireWarmRadius;
+
+  settingsFields.forEach(f=>{
+    const el = document.getElementById('s_'+f);
+    if(!el) return;
+    const v = parseFloat(el.value);
+    if(!isNaN(v)) SETTINGS[f] = v;
+  });
+
+  if(!world) { closeSettings(); return; }
+
+  // live side-effects so changes take hold immediately
+  world.player.speed = SETTINGS.playerSpeed;
+
+  if(SETTINGS.monsterCount !== prevCount){
+    const diff = Math.round(SETTINGS.monsterCount) - world.monsters.length;
+    if(diff > 0){
+      for(let i=0;i<diff;i++) world.spawnMonster();
+    } else if(diff < 0){
+      for(let i=0;i<-diff;i++){
+        const m = world.monsters.pop();
+        if(m){ scene.remove(m.mesh); disposeObject3D(m.mesh); }
+      }
+    }
+  }
+
+  if(SETTINGS.fireWarmRadius !== prevWarmRadius){
+    scene.remove(world.boundaryMesh);
+    world.boundaryMesh = makeBoundaryRing();
+    world.boundaryMesh.position.set(world.fire.x, 0, world.fire.z);
+    scene.add(world.boundaryMesh);
+  }
+
+  toast('Settings applied.');
+  closeSettings();
+}
+document.getElementById('settingsApplyBtn').addEventListener('click', applySettings);
+
+document.getElementById('settingsResetBtn').addEventListener('click', ()=>{
+  SETTINGS = Object.assign({}, SETTINGS_DEFAULTS);
+  fillSettingsInputs();
+  toast('Settings reset — click Apply to use them.');
+});
+
+window.addEventListener('blur', ()=>{
+  keys = {};
+  touchVec.x=0; touchVec.z=0;
+  mouse.down=false;
+});
+
+/* ============================================================
+   TOAST
+============================================================ */
+let toastTimer=null;
+let huntCooldown = 0; // seconds remaining before the next spear/gun swing is allowed
+let huntCooldownMax = HUNT_COOLDOWN; // the cooldown length last used, for the cooldown bar's fraction
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+/* ============================================================
+   DEATH
+============================================================ */
+function revealDeathOverlay(reason){
+  const daySuffix = world.daysSurvived===1 ? 'day' : 'days';
+  document.getElementById('deathReason').textContent = (reason || 'The forest claimed you.') + ' You survived ' + world.daysSurvived + ' ' + daySuffix + '.';
+  document.getElementById('deathOverlay').classList.add('show');
+}
+
+function die(reason, byMonster){
+  world.player.dead = true;
+  world.player.health = 0;
+  document.getElementById('chopHint').style.display = 'none';
+  document.getElementById('huntHint').style.display = 'none';
+  document.getElementById('fireHint').style.display = 'none';
+  document.getElementById('keyHint').style.display = 'none';
+  document.getElementById('doorHint').style.display = 'none';
+  document.getElementById('anvilHint').style.display = 'none';
+  document.getElementById('anvilUpgradePanel').classList.remove('show');
+  document.getElementById('giantWarning').style.display = 'none';
+  document.getElementById('giantHealthBar').classList.remove('show');
+  updateHUD();
+  if(byMonster){
+    playDeathCutscene(()=> revealDeathOverlay(reason));
+  } else {
+    revealDeathOverlay(reason);
+  }
+}
+document.getElementById('deathRestartBtn').addEventListener('click', ()=>{ location.reload(); });
+
+/* ============================================================
+   DOOR
+============================================================ */
+function tryOpenDoor(){
+  if(!world || mapOpen || world.player.dead) return false;
+  const p = world.player;
+  if(flatDist(world.door,p) > DOOR_RANGE) return false;
+  if(world.door.opened){ toast('The door stands open behind you.'); return true; }
+  if(!p.hasKey){ toast('The door is locked — you need the key from the monster den.'); return true; }
+  const freedCount = world.jails.filter(j=>j.freed).length;
+  if(freedCount < world.jails.length){
+    toast('You won\'t leave without them — free both friends first ('+freedCount+'/'+world.jails.length+').');
+    return true;
+  }
+  world.door.opened = true;
+  const panel = world.door.mesh.userData.panel;
+  panel.rotation.y = -Math.PI*0.55;
+  panel.position.x = -0.9; panel.position.z = 0.75;
+  world.door.mesh.userData.lockLight.color.setHex(0x7ad0ff);
+  world.door.mesh.userData.lockLight.intensity = 1.2;
+  toast('The door creaks open... you escaped!');
+  document.getElementById('winOverlay').classList.add('show');
+  updateHUD();
+  return true;
+}
+
+/* ============================================================
+   FRIEND RESCUE
+============================================================ */
+function tryFreeFriend(){
+  if(!world || mapOpen || world.player.dead) return false;
+  const p = world.player;
+  let did = false;
+  world.jails.forEach(jail=>{
+    if(jail.freed) return;
+    if(flatDist(jail,p) > SETTINGS.FRIEND_RESCUE_RANGE) return;
+    did = true;
+    if(!jail.cleared){
+      toast('Defeat the guards here first! ('+jail.guardsAlive+' left)');
+      return;
+    }
+    jail.freed = true;
+    scene.remove(jail.cageMesh); disposeObject3D(jail.cageMesh);
+    // walk free — the friend waits safe back at the campfire from now on
+    const idx = jail.id-1;
+    const total = world.jails.length;
+    const angle = (idx/total)*Math.PI*2;
+    const fx = world.fire.x + Math.sin(angle)*2.4;
+    const fz = world.fire.z + Math.cos(angle)*2.4;
+    jail.friendMesh.position.set(fx,0,fz);
+    jail.friendMesh.rotation.y = Math.atan2(world.fire.x-fx, world.fire.z-fz);
+    const freedCount = world.jails.filter(j=>j.freed).length;
+    toast('You freed your friend! They\'re waiting safe by the campfire. ('+freedCount+'/'+world.jails.length+' rescued)');
+  });
+  if(did) updateHUD();
+  return did;
+}
+
+// E does double duty: open the door if you're standing at it, otherwise chop
+function tryInteractE(){
+  if(tryOpenDoor()) return;
+  if(tryFreeFriend()) return;
+  if(tryRepairAnvil()) return;
+  tryChop();
+}
+
+/* ============================================================
+   CHOPPING
+============================================================ */
+function tryChop(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  let choppedAny = false;
+  world.trees.forEach(t=>{
+    if(t.cut) return;
+    if(t.growing){
+      if(flatDist(t,p) < SETTINGS.chopRange+t.r) choppedAny = 'growing';
+      return;
+    }
+    if(flatDist(t,p) < SETTINGS.chopRange+t.r){
+      t.hp -= (p.axeUpgraded ? AXE_UPGRADED_CHOP_DAMAGE : 1);
+      choppedAny = true;
+      if(t.hp<=0){
+        t.cut = true;
+        scene.remove(t.mesh);
+        disposeObject3D(t.mesh);
+        const stump = makeStumpMesh();
+        stump.position.set(t.x,0,t.z);
+        scene.add(stump);
+        world.player.wood += 2;
+        world.player.saplings += 1;
+        toast('Chopped the tree! +2 Wood, +1 Sapling (Wood: '+world.player.wood+' · Saplings: '+world.player.saplings+')');
+        updateHUD();
+      } else {
+        toast('Chop! ('+t.hp+' hit'+(t.hp===1?'':'s')+' left)');
+      }
+    }
+  });
+  if(!choppedAny) toast('No tree in range — walk up to one first.');
+  else if(choppedAny==='growing') toast('That sapling is still growing — give it time.');
+}
+
+/* ============================================================
+   PLANTING
+============================================================ */
+function tryPlantSapling(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(p.saplings<=0){ toast('No saplings to plant — chop a tree to get one.'); return; }
+
+  const px = p.x + Math.sin(p.facing)*PLANT_RANGE;
+  const pz = p.z + Math.cos(p.facing)*PLANT_RANGE;
+
+  const tooClose = world.trees.some(t=>!t.cut && Math.hypot(t.x-px,t.z-pz) < PLANT_MIN_TREE_DIST)
+                 || flatDist({x:px,z:pz}, world.fire) < SETTINGS.fireWarmRadius;
+  if(tooClose){ toast('Not enough room here — try a clearer spot.'); return; }
+
+  p.saplings -= 1;
+  const mesh = makeTreeMesh();
+  mesh.scale.set(0.12,0.12,0.12);
+  mesh.position.set(px,0,pz);
+  scene.add(mesh);
+  world.trees.push({x:px,z:pz,r:0.9,hp:5,cut:false,mesh,growing:true,growT:0});
+  toast('Planted a sapling — it will grow into a tree over time.');
+  updateHUD();
+}
+
+/* ============================================================
+   HUNTING
+============================================================ */
+function tryHunt(weapon){
+  if(!world || mapOpen || world.player.dead) return;
+  if(huntCooldown > 0) return; // still recovering from the last swing
+  const p = world.player;
+  weapon = weapon || 'spear';
+  const usingTarget = weapon==='target';
+  if((weapon==='gun'||usingTarget) && !p.gun){ toast('You don\'t have a gun — craft one at the anvil.'); return; }
+  if((weapon==='gun'||usingTarget) && p.ammo<=0){ toast('Out of ammo — craft more at the anvil.'); return; }
+  const usingGun = weapon==='gun' || usingTarget;
+  const range = usingTarget ? TARGET_RANGE : (usingGun ? GUN_RANGE : SETTINGS.spearRange);
+  let target = null, bestDist = range, targetKind = null;
+  world.animals.forEach(a=>{
+    const d = flatDist(a,p);
+    if(d < bestDist){ bestDist = d; target = a; targetKind = 'animal'; }
+  });
+  world.monsters.forEach(m=>{
+    const d = flatDist(m,p);
+    if(d < bestDist){ bestDist = d; target = m; targetKind = 'monster'; }
+  });
+  if(!target){ toast(usingTarget ? 'Nothing out there to target — nothing within long range.' : (usingGun ? 'Nothing in gun range — get closer.' : 'Nothing in spear range — get closer.')); return; }
+
+  huntCooldown = target.zombie ? SETTINGS.ZOMBIE_HUNT_COOLDOWN : (usingTarget ? TARGET_COOLDOWN : HUNT_COOLDOWN);
+  huntCooldownMax = huntCooldown;
+  if(target.giant && !usingGun){
+    // the giant's hide is too tough for a spear — only a gun can hurt it
+    toast(p.gun ? 'Out of ammo — the spear just bounces off the giant!' : 'Your spear bounces off the giant — you need a gun to hurt it!');
+    return;
+  }
+
+  if(usingGun) p.ammo -= 1;
+  target.hp -= target.giant ? SETTINGS.GIANT_GUN_DAMAGE_PCT
+    : target.zombie ? (usingGun ? SETTINGS.ZOMBIE_GUN_DAMAGE_PCT : SETTINGS.ZOMBIE_SPEAR_DAMAGE_PCT)
+    : (usingGun ? GUN_DAMAGE : (p.spearUpgraded ? SPEAR_UPGRADED_DAMAGE : 1));
+  if(target.hp <= 0){
+    scene.remove(target.mesh);
+    disposeObject3D(target.mesh);
+    if(targetKind==='animal'){
+      world.animals = world.animals.filter(a=>a!==target);
+      p.health = clamp(p.health + SETTINGS.spearHeal, 0, 100);
+      p.hunted += 1;
+      let itemMsg = '';
+      if(target.type==='rabbit'){ p.rabbitFoot += 1; itemMsg = ', +1 rabbit foot'; }
+      else if(target.type==='sheep'){ p.sheepWool += 1; itemMsg = ', +1 sheep wool'; }
+      else if(target.type==='deer'){ p.deerSkin += 1; itemMsg = ', +1 deer skin'; }
+      toast((usingTarget ? 'Targeted and dropped the ' : (usingGun ? 'Shot the ' : 'Speared the '))+target.type+'! (+'+SETTINGS.spearHeal+' health'+itemMsg+')');
+      // the forest repopulates after a while so it never empties out
+      setTimeout(()=>{
+        if(world && world.spawnAnimal) world.spawnAnimal(target.type, 1);
+      }, ANIMAL_RESPAWN_TIME*1000);
+    } else if(target.giant){
+      world.monsters = world.monsters.filter(m=>m!==target);
+      world.giant = null;
+      p.bones += SETTINGS.GIANT_BONE_DROP;
+      p.hunted += 1;
+      toast('YOU SLEW THE GIANT! (+'+SETTINGS.GIANT_BONE_DROP+' bones)');
+      document.getElementById('giantWarning').style.display = 'none';
+    } else {
+      world.monsters = world.monsters.filter(m=>m!==target);
+      const wasGuard = !!target.guard;
+      p.bones += MONSTER_BONE_DROP;
+      p.hunted += 1;
+
+      // if this guard belonged to a friend's camp, track it toward clearing that camp
+      let clearedJailMsg = null;
+      if(target.jailId){
+        const jail = world.jails.find(j=>j.id===target.jailId);
+        if(jail && !jail.cleared){
+          jail.guardsAlive = Math.max(0, jail.guardsAlive - 1);
+          if(jail.guardsAlive <= 0){
+            jail.cleared = true;
+            clearedJailMsg = 'All guards down! Walk up and press E to free your friend.';
+          }
+        }
+      }
+      toast(clearedJailMsg || (target.zombie ? 'You destroyed the zombie! (+'+MONSTER_BONE_DROP+' bones)' : (wasGuard ? 'Killed a den guard! (+'+MONSTER_BONE_DROP+' bones)' : 'Killed the monster! (+'+MONSTER_BONE_DROP+' bones)')));
+
+      // the deep forest sends another one out after a while (night-only
+      // spawns don't get a respawn timer — they return naturally at dusk).
+      // camps that have been fully cleared stop sending reinforcements.
+      if(!target.nightOnly || wasGuard){
+        const homeX = target.homeX, homeZ = target.homeZ, jailId = target.jailId;
+        setTimeout(()=>{
+          if(!world) return;
+          if(wasGuard && world.spawnGuardAt){
+            if(jailId){
+              const jail = world.jails.find(j=>j.id===jailId);
+              if(jail && jail.cleared) return;
+            }
+            world.spawnGuardAt(homeX, homeZ, undefined, jailId);
+          } else if(world.spawnMonster) world.spawnMonster();
+        }, MONSTER_RESPAWN_TIME*1000);
+      }
+    }
+  } else {
+    toast(target.giant ? 'Hit! The giant roars in fury! ('+Math.round(target.hp)+'% health)' : (targetKind==='monster' ? 'Hit! The monster snarls.' : 'Hit! The '+target.type+' is wounded.'));
+  }
+  updateHUD();
+}
+
+/* ============================================================
+   CAMPFIRE
+============================================================ */
+function tryFeedFire(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(flatDist(world.fire,p) > FIRE_FEED_RANGE){ toast('Get closer to the campfire to feed it.'); return; }
+  if(p.wood<=0){ toast('No wood to feed the fire — chop a tree first.'); return; }
+  p.wood -= 1;
+  world.fire.fuel = clamp(world.fire.fuel + SETTINGS.fireFeedGain, 0, 100);
+  toast('Fed the fire (+'+SETTINGS.fireFeedGain+'% fuel)');
+  updateHUD();
+}
+
+/* ============================================================
+   FREED FRIENDS — once rescued, they help out around camp on their own:
+   chopping nearby trees, feeding the fire when it's low, and planting
+   saplings near the fire. They always move slower than the player and
+   stick within range of the campfire rather than roaming the whole map.
+============================================================ */
+// walks a friend mesh toward (tx,tz); returns true once it has arrived
+function moveFriendToward(mesh, tx, tz, dt, arriveDist, speedMult){
+  arriveDist = (arriveDist===undefined) ? FRIEND_ARRIVE_DIST : arriveDist;
+  speedMult = (speedMult===undefined) ? 1 : speedMult;
+  const dx = tx - mesh.position.x, dz = tz - mesh.position.z;
+  const d = Math.hypot(dx,dz);
+  if(d <= arriveDist){ return true; }
+  const ang = Math.atan2(dx,dz);
+  const speed = SETTINGS.playerSpeed * SETTINGS.FRIEND_SPEED_FACTOR * speedMult; // always slower than the player, unless upgraded
+  mesh.position.x += Math.sin(ang)*speed*dt;
+  mesh.position.z += Math.cos(ang)*speed*dt;
+  mesh.rotation.y = lerpAngle(mesh.rotation.y, ang, 0.1);
+  if(!mesh.userData.walkT) mesh.userData.walkT = 0;
+  mesh.userData.walkT += dt*7*speedMult;
+  animateWalk(mesh, mesh.userData.walkT, true);
+  return false;
+}
+
+function updateFriends(dt){
+  if(!world || !world.jails) return;
+  const workRadius = SETTINGS.fireWarmRadius + FRIEND_WORK_RANGE_BUFFER;
+
+  world.jails.forEach(jail=>{
+    if(!jail.freed || !jail.friendMesh) return;
+    if(!jail.friend){
+      jail.friend = {task:'idle', targetTree:null, chopTimer:0, saplings:0, actionCooldown:rand(0.5,2.5), saplingTimer:SETTINGS.FRIEND_AUTO_SAPLING_INTERVAL};
+    }
+    const f = jail.friend;
+    const fm = jail.friendMesh;
+    const mult = jail.friendUpgraded ? SETTINGS.FRIEND_UPGRADED_SPEED_MULT : 1; // upgraded friends do everything faster
+
+    // every minute, a freed friend gets a fresh sapling to go plant, on top of any earned from chopping
+    if(f.saplingTimer===undefined) f.saplingTimer = SETTINGS.FRIEND_AUTO_SAPLING_INTERVAL;
+    f.saplingTimer -= dt*mult;
+    if(f.saplingTimer <= 0){
+      f.saplingTimer = SETTINGS.FRIEND_AUTO_SAPLING_INTERVAL;
+      f.saplings += 1;
+    }
+
+    if(f.task==='idle'){
+      f.actionCooldown -= dt*mult;
+      animateWalk(fm, fm.userData.walkT||0, false);
+      if(f.actionCooldown > 0) return;
+
+      // priority 0: a zombie is prowling near camp on a war night — fight it off
+      const nearbyZombie = world.monsters.find(m=>m.zombie && flatDist(m, world.fire) < workRadius);
+      if(nearbyZombie){
+        f.targetZombie = nearbyZombie;
+        f.task = 'toZombie';
+        return;
+      }
+      // priority 1: the fire is getting low — go feed it
+      if(world.fire.fuel < SETTINGS.FRIEND_FEED_FUEL_THRESHOLD){
+        f.task = 'toFire';
+        return;
+      }
+      // priority 2: plant a sapling gathered from earlier chopping
+      if(f.saplings > 0){
+        f.task = 'findPlantSpot';
+        return;
+      }
+      // priority 3: find the nearest uncut, unclaimed tree within range to chop
+      let best = null, bestD = workRadius;
+      world.trees.forEach(t=>{
+        if(t.cut || t.growing) return;
+        if(t.claimedBy && t.claimedBy!==jail.id) return;
+        const d = flatDist(t, world.fire);
+        if(d < bestD){ bestD = d; best = t; }
+      });
+      if(best){
+        best.claimedBy = jail.id;
+        f.targetTree = best;
+        f.task = 'toTree';
+      } else {
+        // nothing to do right now — wander a little near the fire
+        const ang = Math.random()*Math.PI*2;
+        const dist = rand(2, SETTINGS.fireWarmRadius*0.6);
+        f.wanderX = world.fire.x + Math.sin(ang)*dist;
+        f.wanderZ = world.fire.z + Math.cos(ang)*dist;
+        f.task = 'wander';
+      }
+      return;
+    }
+
+    if(f.task==='toZombie'){
+      const z = f.targetZombie;
+      if(!z || !world.monsters.includes(z) || z.hp<=0){ f.task='idle'; f.targetZombie=null; f.actionCooldown=rand(1,2)/mult; return; }
+      if(moveFriendToward(fm, z.x, z.z, dt, SETTINGS.FRIEND_ZOMBIE_RANGE, mult)){
+        f.task = 'fightingZombie';
+        f.zombieHitTimer = SETTINGS.FRIEND_ZOMBIE_HIT_INTERVAL;
+      }
+      return;
+    }
+
+    if(f.task==='fightingZombie'){
+      const z = f.targetZombie;
+      if(!z || !world.monsters.includes(z) || z.hp<=0){ f.task='idle'; f.targetZombie=null; f.actionCooldown=rand(1,2)/mult; return; }
+      const d = flatDist(fm.position, z);
+      if(d > SETTINGS.FRIEND_ZOMBIE_RANGE + 0.6){ f.task = 'toZombie'; return; } // it wandered off, chase again
+      fm.rotation.y = lerpAngle(fm.rotation.y, Math.atan2(z.x-fm.position.x, z.z-fm.position.z), 0.15);
+      // swing the spear through one full jab cycle between hits, so the
+      // friend visibly winds up and stabs in time with each hit landing
+      animateSpearSwing(fm, 1 - clamp(f.zombieHitTimer/SETTINGS.FRIEND_ZOMBIE_HIT_INTERVAL, 0, 1));
+      f.zombieHitTimer -= dt*mult;
+      if(f.zombieHitTimer <= 0){
+        f.zombieHitTimer = SETTINGS.FRIEND_ZOMBIE_HIT_INTERVAL;
+        z.hp -= (jail.friendUpgraded ? SETTINGS.FRIEND_UPGRADED_ZOMBIE_DAMAGE_PCT : SETTINGS.ZOMBIE_FRIEND_DAMAGE_PCT);
+        if(z.hp <= 0){
+          world.monsters = world.monsters.filter(m=>m!==z);
+          scene.remove(z.mesh);
+          disposeObject3D(z.mesh);
+          world.player.bones += MONSTER_BONE_DROP;
+          toast('Your freed friend finished off the zombie!');
+          updateHUD();
+          f.task = 'idle'; f.targetZombie = null; f.actionCooldown = rand(2,4)/mult;
+        } else {
+          toast('Your freed friend struck the zombie!');
+        }
+      }
+      return;
+    }
+
+    if(f.task==='wander'){
+      if(moveFriendToward(fm, f.wanderX, f.wanderZ, dt, undefined, mult)){ f.task='idle'; f.actionCooldown=rand(3,6)/mult; }
+      return;
+    }
+
+    if(f.task==='toFire'){
+      if(moveFriendToward(fm, world.fire.x, world.fire.z, dt, FIRE_FEED_RANGE-0.5, mult)){
+        world.fire.fuel = clamp(world.fire.fuel + SETTINGS.fireFeedGain, 0, 100);
+        toast('Your freed friend fed the fire.');
+        f.task = 'idle'; f.actionCooldown = rand(18,28)/mult;
+      }
+      return;
+    }
+
+    if(f.task==='toTree'){
+      const t = f.targetTree;
+      if(!t || t.cut){ f.task='idle'; f.targetTree=null; f.actionCooldown=rand(1,2)/mult; return; }
+      if(moveFriendToward(fm, t.x, t.z, dt, SETTINGS.chopRange + t.r - 0.2, mult)){
+        f.task = 'chopping'; f.chopTimer = SETTINGS.FRIEND_CHOP_INTERVAL;
+      }
+      return;
+    }
+
+    if(f.task==='chopping'){
+      const t = f.targetTree;
+      if(!t || t.cut){ f.task='idle'; f.targetTree=null; f.actionCooldown=rand(1,2)/mult; return; }
+      animateWalk(fm, fm.userData.walkT||0, false);
+      f.chopTimer -= dt*mult;
+      if(f.chopTimer <= 0){
+        f.chopTimer = SETTINGS.FRIEND_CHOP_INTERVAL;
+        t.hp -= (jail.friendUpgraded ? SETTINGS.FRIEND_UPGRADED_CHOP_DAMAGE : 1);
+        if(t.hp <= 0){
+          t.cut = true;
+          scene.remove(t.mesh);
+          disposeObject3D(t.mesh);
+          const stump = makeStumpMesh();
+          stump.position.set(t.x,0,t.z);
+          scene.add(stump);
+          world.player.wood += 2;
+          f.saplings += 1;
+          toast('Your freed friend chopped a tree! (+2 wood)');
+          updateHUD();
+          f.targetTree = null;
+          f.task = 'idle'; f.actionCooldown = rand(1,2)/mult;
+        }
+      }
+      return;
+    }
+
+    if(f.task==='findPlantSpot'){
+      const ang = Math.random()*Math.PI*2;
+      const dist = rand(SETTINGS.fireWarmRadius*0.5, SETTINGS.fireWarmRadius*0.9);
+      const px = world.fire.x + Math.sin(ang)*dist;
+      const pz = world.fire.z + Math.cos(ang)*dist;
+      const blocked = world.trees.some(tt=>!tt.cut && Math.hypot(tt.x-px,tt.z-pz) < PLANT_MIN_TREE_DIST)
+                    || flatDist({x:px,z:pz}, world.fire) < SETTINGS.fireWarmRadius*0.4;
+      if(blocked){
+        f.plantAttempts = (f.plantAttempts||0) + 1;
+        if(f.plantAttempts > 8){ f.plantAttempts=0; f.task='idle'; f.actionCooldown=rand(2,4)/mult; }
+        return;
+      }
+      f.plantAttempts = 0;
+      f.plantSpot = {x:px, z:pz};
+      f.task = 'toPlant';
+      return;
+    }
+
+    if(f.task==='toPlant'){
+      if(moveFriendToward(fm, f.plantSpot.x, f.plantSpot.z, dt, 0.6, mult)){ f.task = 'planting'; }
+      return;
+    }
+
+    if(f.task==='planting'){
+      f.saplings -= 1;
+      const mesh = makeTreeMesh();
+      mesh.scale.set(0.12,0.12,0.12);
+      mesh.position.set(f.plantSpot.x,0,f.plantSpot.z);
+      scene.add(mesh);
+      world.trees.push({x:f.plantSpot.x,z:f.plantSpot.z,r:0.9,hp:5,cut:false,mesh,growing:true,growT:0});
+      toast('Your freed friend planted a sapling near the fire.');
+      f.plantSpot = null;
+      f.task = 'idle'; f.actionCooldown = rand(2,4)/mult;
+    }
+  });
+}
+
+/* ============================================================
+   ANVIL — repair, then craft gun & ammo
+============================================================ */
+// returns true if this E-press was handled here (so tryInteractE stops)
+function tryRepairAnvil(){
+  if(!world || mapOpen || world.player.dead) return false;
+  const p = world.player;
+  if(world.anvil.repaired) return false;
+  if(flatDist(world.anvil,p) > SETTINGS.ANVIL_INTERACT_RANGE) return false;
+  if(p.anvilPieces < SETTINGS.ANVIL_PIECE_COUNT){
+    toast('The anvil is broken — bring all '+SETTINGS.ANVIL_PIECE_COUNT+' pieces to fix it ('+p.anvilPieces+'/'+SETTINGS.ANVIL_PIECE_COUNT+')');
+    return true;
+  }
+  p.anvilPieces -= SETTINGS.ANVIL_PIECE_COUNT;
+  world.anvil.repaired = true;
+  scene.remove(world.anvil.mesh);
+  disposeObject3D(world.anvil.mesh);
+  const fixedMesh = makeAnvilMesh(true);
+  fixedMesh.position.set(world.anvil.x, 0, world.anvil.z);
+  scene.add(fixedMesh);
+  world.anvil.mesh = fixedMesh;
+  toast('You fixed the anvil! You can craft a gun and ammo here from scrap.');
+  updateHUD();
+  return true;
+}
+
+function craftGun(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(!world.anvil.repaired || flatDist(world.anvil,p) > SETTINGS.ANVIL_INTERACT_RANGE) return;
+  if(p.gun){ toast('You already have a gun.'); return; }
+  if(p.scrap < GUN_SCRAP_COST){ toast('Need '+GUN_SCRAP_COST+' scrap to craft a gun (have '+p.scrap+')'); return; }
+  p.scrap -= GUN_SCRAP_COST;
+  p.gun = true;
+  p.ammo += GUN_STARTING_AMMO;
+  toast('Crafted a gun! (comes with no ammo — craft that separately)');
+  updateHUD();
+}
+
+function craftAmmo(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(!world.anvil.repaired || flatDist(world.anvil,p) > SETTINGS.ANVIL_INTERACT_RANGE) return;
+  if(p.scrap < AMMO_SCRAP_COST){ toast('Need '+AMMO_SCRAP_COST+' scrap to craft 1 ammo (have '+p.scrap+')'); return; }
+  p.scrap -= AMMO_SCRAP_COST;
+  p.ammo += 1;
+  toast('Crafted 1 ammo (Ammo: '+p.ammo+')');
+  updateHUD();
+}
+
+function craftAxeUpgrade(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(!world.anvil.repaired || flatDist(world.anvil,p) > SETTINGS.ANVIL_INTERACT_RANGE) return;
+  if(p.axeUpgraded){ toast('Your axe is already upgraded.'); return; }
+  if(p.wood < AXE_UPGRADE_WOOD_COST || p.scrap < AXE_UPGRADE_SCRAP_COST || p.bones < AXE_UPGRADE_BONE_COST){
+    toast('Need '+AXE_UPGRADE_WOOD_COST+' Wood, '+AXE_UPGRADE_SCRAP_COST+' Scrap, '+AXE_UPGRADE_BONE_COST+' Bones to upgrade the axe (have '+p.wood+'/'+p.scrap+'/'+p.bones+')');
+    return;
+  }
+  p.wood -= AXE_UPGRADE_WOOD_COST;
+  p.scrap -= AXE_UPGRADE_SCRAP_COST;
+  p.bones -= AXE_UPGRADE_BONE_COST;
+  p.axeUpgraded = true;
+  toast('Upgraded your axe! Trees now fall in 3 hits.');
+  updateHUD();
+}
+
+function craftSpearUpgrade(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(!world.anvil.repaired || flatDist(world.anvil,p) > SETTINGS.ANVIL_INTERACT_RANGE) return;
+  if(p.spearUpgraded){ toast('Your spear is already upgraded.'); return; }
+  if(p.wood < SPEAR_UPGRADE_WOOD_COST || p.scrap < SPEAR_UPGRADE_SCRAP_COST || p.bones < SPEAR_UPGRADE_BONE_COST){
+    toast('Need '+SPEAR_UPGRADE_WOOD_COST+' Wood, '+SPEAR_UPGRADE_SCRAP_COST+' Scrap, '+SPEAR_UPGRADE_BONE_COST+' Bones to upgrade the spear (have '+p.wood+'/'+p.scrap+'/'+p.bones+')');
+    return;
+  }
+  p.wood -= SPEAR_UPGRADE_WOOD_COST;
+  p.scrap -= SPEAR_UPGRADE_SCRAP_COST;
+  p.bones -= SPEAR_UPGRADE_BONE_COST;
+  p.spearUpgraded = true;
+  toast('Upgraded your spear! Animals and monsters now go down in 2 hits.');
+  updateHUD();
+}
+
+function craftFriendUpgrade(jailId){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(!world.anvil.repaired || flatDist(world.anvil,p) > SETTINGS.ANVIL_INTERACT_RANGE) return;
+  const jail = world.jails.find(j=>j.id===jailId);
+  if(!jail) return;
+  if(!jail.freed){ toast('Friend '+jailId+' hasn\'t been freed yet — clear their camp first.'); return; }
+  if(jail.friendUpgraded){ toast('Friend '+jailId+' is already upgraded.'); return; }
+  if(p.wood < SETTINGS.FRIEND_UPGRADE_WOOD_COST || p.scrap < SETTINGS.FRIEND_UPGRADE_SCRAP_COST || p.bones < SETTINGS.FRIEND_UPGRADE_BONE_COST
+     || p.rabbitFoot < SETTINGS.FRIEND_UPGRADE_RABBITFOOT_COST || p.sheepWool < SETTINGS.FRIEND_UPGRADE_SHEEPWOOL_COST || p.deerSkin < SETTINGS.FRIEND_UPGRADE_DEERSKIN_COST){
+    toast('Need '+SETTINGS.FRIEND_UPGRADE_SCRAP_COST+' Scrap, '+SETTINGS.FRIEND_UPGRADE_WOOD_COST+' Wood, '+SETTINGS.FRIEND_UPGRADE_BONE_COST+' Bones, '+SETTINGS.FRIEND_UPGRADE_RABBITFOOT_COST+' Rabbit Foot, '+SETTINGS.FRIEND_UPGRADE_SHEEPWOOL_COST+' Sheep Wool, '+SETTINGS.FRIEND_UPGRADE_DEERSKIN_COST+' Deer Skin to upgrade Friend '+jailId);
+    return;
+  }
+  p.wood -= SETTINGS.FRIEND_UPGRADE_WOOD_COST;
+  p.scrap -= SETTINGS.FRIEND_UPGRADE_SCRAP_COST;
+  p.bones -= SETTINGS.FRIEND_UPGRADE_BONE_COST;
+  p.rabbitFoot -= SETTINGS.FRIEND_UPGRADE_RABBITFOOT_COST;
+  p.sheepWool -= SETTINGS.FRIEND_UPGRADE_SHEEPWOOL_COST;
+  p.deerSkin -= SETTINGS.FRIEND_UPGRADE_DEERSKIN_COST;
+  jail.friendUpgraded = true;
+  toast('Upgraded Friend '+jailId+'! They now do everything faster — moving, chopping, and fighting.');
+  updateHUD();
+}
+
+function craftTorchBattery(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(!world.anvil.repaired || flatDist(world.anvil,p) > SETTINGS.ANVIL_INTERACT_RANGE) return;
+  if(p.scrap < SETTINGS.TORCH_BATTERY_SCRAP_COST || p.bones < SETTINGS.TORCH_BATTERY_BONE_COST){
+    toast('Need '+SETTINGS.TORCH_BATTERY_SCRAP_COST+' Scrap, '+SETTINGS.TORCH_BATTERY_BONE_COST+' Bones to build a torch battery (have '+p.scrap+'/'+p.bones+')');
+    return;
+  }
+  p.scrap -= SETTINGS.TORCH_BATTERY_SCRAP_COST;
+  p.bones -= SETTINGS.TORCH_BATTERY_BONE_COST;
+  p.torchBatteries += 1;
+  toast('Built a torch battery! ('+p.torchBatteries+' in reserve, '+SETTINGS.TORCH_MAX_SECONDS+'s each)');
+  updateHUD();
+}
+
+/* ============================================================
+   TORCH — scares off monsters (not the giant) for one battery's charge
+============================================================ */
+function toggleTorch(){
+  if(!world || mapOpen || world.player.dead) return;
+  const p = world.player;
+  if(p.torchOn){
+    p.torchOn = false;
+    toast('Torch switched off (battery saved: '+Math.ceil(p.torchSeconds)+'s left).');
+    updateHUD();
+    return;
+  }
+  if(p.torchSeconds <= 0){
+    if(p.torchBatteries <= 0){
+      toast('No torch battery — build one at the anvil ('+SETTINGS.TORCH_BATTERY_SCRAP_COST+' Scrap, '+SETTINGS.TORCH_BATTERY_BONE_COST+' Bones).');
+      return;
+    }
+    p.torchBatteries -= 1;
+    p.torchSeconds = SETTINGS.TORCH_MAX_SECONDS;
+  }
+  p.torchOn = true;
+  toast('Torch lit! Monsters keep their distance — but not the giant.');
+  updateHUD();
+}
+
+/* ============================================================
+   MAP
+============================================================ */
+function toggleMap(){
+  mapOpen = !mapOpen;
+  document.getElementById('mapOverlay').classList.toggle('show', mapOpen);
+  if(mapOpen) drawMap();
+}
+document.getElementById('mapOverlay').addEventListener('click', toggleMap);
+document.getElementById('btnMap').addEventListener('click', toggleMap);
+
+/* ============================================================
+   PAUSE
+============================================================ */
+function togglePause(){
+  if(!world || mapOpen || cutsceneActive || world.player.dead || world.door.opened) return;
+  paused = !paused;
+  document.getElementById('pauseOverlay').classList.toggle('show', paused);
+  if(paused) toast('Paused');
+}
+document.getElementById('pauseOverlay').addEventListener('click', ()=>{ if(paused) togglePause(); });
+
+function drawMap(){
+  const mctx = document.getElementById('mapCanvas').getContext('2d');
+  const mw=520, mh=400;
+  const sx = mw/(WORLD_HALF_X*2), sy = mh/(WORLD_HALF_Z*2);
+  const toMapX = x => (x+WORLD_HALF_X)*sx;
+  const toMapY = z => (z+WORLD_HALF_Z)*sy;
+
+  mctx.fillStyle='#0e1a0d'; mctx.fillRect(0,0,mw,mh);
+  mctx.strokeStyle='#233a1c'; mctx.strokeRect(0,0,mw,mh);
+
+  mctx.fillStyle = world.fire.fuel>0 ? '#ff9a3a' : '#5a4a3a';
+  mctx.beginPath(); mctx.arc(toMapX(world.fire.x),toMapY(world.fire.z),6,0,Math.PI*2); mctx.fill();
+  mctx.fillStyle='#f2e6c9'; mctx.font='12px monospace';
+  mctx.fillText('CAMP', toMapX(world.fire.x)-14, toMapY(world.fire.z)-10);
+
+  // safe-zone boundary ring
+  mctx.strokeStyle = world.fire.fuel>0 ? 'rgba(255,160,48,0.75)' : 'rgba(180,40,30,0.7)';
+  mctx.lineWidth = 2;
+  mctx.beginPath();
+  mctx.arc(toMapX(world.fire.x), toMapY(world.fire.z), SETTINGS.fireWarmRadius*((sx+sy)/2), 0, Math.PI*2);
+  mctx.stroke();
+
+  // monster den
+  mctx.fillStyle = '#8a5a2a';
+  mctx.beginPath(); mctx.arc(toMapX(MONSTER_HOME.x),toMapY(MONSTER_HOME.z),9,0,Math.PI*2); mctx.fill();
+  mctx.fillStyle='#f2e6c9'; mctx.font='12px monospace';
+  mctx.fillText('DEN', toMapX(MONSTER_HOME.x)-11, toMapY(MONSTER_HOME.z)-12);
+
+  // exit door
+  mctx.fillStyle = '#7ad0ff';
+  mctx.fillRect(toMapX(DOOR_POS.x)-5, toMapY(DOOR_POS.z)-7, 10, 14);
+  mctx.fillStyle='#f2e6c9';
+  mctx.fillText('EXIT', toMapX(DOOR_POS.x)-13, toMapY(DOOR_POS.z)-12);
+
+  mctx.fillStyle = '#ff3020';
+  world.monsters.forEach(m=>{
+    if(m.giant) return;
+    mctx.beginPath(); mctx.arc(toMapX(m.x),toMapY(m.z),3.2,0,Math.PI*2); mctx.fill();
+  });
+
+  // the giant, marked distinctly while it stalks the map at night
+  if(world.giant){
+    const gx = toMapX(world.giant.x), gy = toMapY(world.giant.z);
+    mctx.fillStyle = '#ff2a1a';
+    mctx.beginPath(); mctx.arc(gx,gy,6.5,0,Math.PI*2); mctx.fill();
+    mctx.strokeStyle = '#ffb0a0'; mctx.lineWidth = 1.5;
+    mctx.beginPath(); mctx.arc(gx,gy,9,0,Math.PI*2); mctx.stroke();
+  }
+
+  // the key, while it's still out there
+  if(!world.key.collected){
+    mctx.fillStyle = '#e2c469';
+    mctx.beginPath(); mctx.arc(toMapX(world.key.x),toMapY(world.key.z),4,0,Math.PI*2); mctx.fill();
+  }
+
+  // the house and its anvil
+  mctx.fillStyle = '#c98a4a';
+  mctx.fillRect(toMapX(HOUSE_POS.x)-5, toMapY(HOUSE_POS.z)-5, 10, 10);
+  mctx.fillStyle='#f2e6c9';
+  mctx.fillText(world.anvil.repaired?'ANVIL':'HOUSE', toMapX(HOUSE_POS.x)-16, toMapY(HOUSE_POS.z)-9);
+
+  // the two captured friends, each in their own guarded camp
+  world.jails.forEach(jail=>{
+    mctx.fillStyle = jail.freed ? '#7ee27e' : (jail.cleared ? '#e2a33c' : '#c9a0ff');
+    mctx.beginPath(); mctx.arc(toMapX(jail.x),toMapY(jail.z),8,0,Math.PI*2); mctx.fill();
+    mctx.fillStyle='#f2e6c9'; mctx.font='12px monospace';
+    const label = jail.freed ? 'FREED' : (jail.cleared ? 'FREE ME!' : 'FRIEND '+jail.id);
+    mctx.fillText(label, toMapX(jail.x)-24, toMapY(jail.z)-13);
+  });
+
+  const p = world.player;
+  mctx.fillStyle='#7ecbe8';
+  mctx.beginPath(); mctx.arc(toMapX(p.x),toMapY(p.z),5,0,Math.PI*2); mctx.fill();
+}
+
+/* ============================================================
+   ANIMATION HELPERS
+============================================================ */
+// spear-jab animation: progress goes 0 -> 1 -> 0 across one full swing cycle
+// (wind-up, thrust, recover). Used for a friend actually swinging their
+// spear at a zombie, instead of just standing there holding it.
+function animateSpearSwing(mesh, progress){
+  const parts = mesh.userData.parts;
+  if(!parts) return;
+  const p = clamp(progress,0,1);
+  // wind up (raise arm back) for the first third, thrust forward hard through
+  // the middle, then relax back to neutral for the last third
+  let swing;
+  if(p < 0.35){ swing = -(p/0.35); }                 // -1 .. 0 : pull back
+  else if(p < 0.6){ swing = (p-0.35)/0.25; }          // 0 .. 1  : stab forward
+  else { swing = 1 - (p-0.6)/0.4; }                   // 1 .. 0  : recover
+  parts.armR.rotation.x = swing*0.95;
+  parts.armR.rotation.z = -0.3 + swing*0.15;
+  parts.armL.rotation.x = -swing*0.3;
+  parts.torso.rotation.x = Math.max(0,swing)*0.12;
+  parts.legL.rotation.x = 0; parts.legR.rotation.x = 0;
+}
+
+function animateWalk(mesh, walkT, moving){
+  const parts = mesh.userData.parts;
+  if(!parts) return;
+  const t = performance.now()*0.001;
+  if(moving){
+    const swing = Math.sin(walkT)*0.6;
+    parts.legL.rotation.x = swing;
+    parts.legR.rotation.x = -swing;
+    parts.armL.rotation.x = -swing*0.8;
+    parts.armR.rotation.x = swing*0.8;
+    const bob = Math.abs(Math.sin(walkT))*0.05;
+    parts.torso.position.y = 1.15 + bob;
+    parts.head.position.y = 1.95 + bob;
+    parts.torso.rotation.z = Math.sin(walkT)*0.035;
+  } else {
+    parts.legL.rotation.x = 0;
+    parts.legR.rotation.x = 0;
+    parts.armL.rotation.x = Math.sin(t*1.1)*0.025;
+    parts.armR.rotation.x = -Math.sin(t*1.1)*0.025;
+    parts.torso.rotation.z = 0;
+    const breathe = Math.sin(t*1.3)*0.015;
+    parts.torso.position.y = 1.15 + breathe;
+    parts.head.position.y = 1.95 + breathe*0.6;
+  }
+}
+
+/* ============================================================
+   UPDATE
+============================================================ */
+function update(dt){
+  const p = world.player;
+  if(p.dead) return;
+
+  if(huntCooldown > 0) huntCooldown = Math.max(0, huntCooldown - dt);
+
+  const fwdX = Math.sin(camYaw), fwdZ = Math.cos(camYaw);
+  const rightX = Math.sin(camYaw+Math.PI/2), rightZ = Math.cos(camYaw+Math.PI/2);
+  let forwardAxis = 0, rightAxis = 0;
+  if(keys['w']||keys['arrowup']) forwardAxis -= 1;
+  if(keys['s']||keys['arrowdown']) forwardAxis += 1;
+  if(viewMode==='first'){
+    // A/D turn left/right instead of strafing
+    let turnAxis = 0;
+    if(keys['a']||keys['arrowleft']) turnAxis -= 1;
+    if(keys['d']||keys['arrowright']) turnAxis += 1;
+    turnAxis += touchVec.x;
+    camYaw -= clamp(turnAxis,-1,1) * TURN_SPEED * dt;
+  } else {
+    if(keys['a']||keys['arrowleft']) rightAxis -= 1;
+    if(keys['d']||keys['arrowright']) rightAxis += 1;
+    rightAxis += touchVec.x;
+  }
+  forwardAxis += touchVec.z;
+  forwardAxis = clamp(forwardAxis,-1,1);
+  rightAxis = clamp(rightAxis,-1,1);
+
+  let moveX = fwdX*forwardAxis + rightX*rightAxis;
+  let moveZ = fwdZ*forwardAxis + rightZ*rightAxis;
+  let moving = (Math.abs(moveX)>0.001 || Math.abs(moveZ)>0.001);
+
+  // stamina-gated sprint: holding shift only sprints while stamina remains,
+  // and once it's fully drained you have to let it recover before sprinting again
+  if(p.stamina===undefined) p.stamina = 100;
+  if(p.staminaLocked===undefined) p.staminaLocked = false;
+  const wantsSprint = keys['shift'] || touchSprintHeld;
+  const sprinting = wantsSprint && moving && p.stamina>0 && !p.staminaLocked;
+
+  if(sprinting){
+    p.stamina = clamp(p.stamina - STAMINA_DRAIN_RATE*dt, 0, 100);
+    if(p.stamina<=0) p.staminaLocked = true; // must recover before sprinting again
+  } else {
+    p.stamina = clamp(p.stamina + STAMINA_REGEN_RATE*dt, 0, 100);
+    if(p.staminaLocked && p.stamina>=STAMINA_UNLOCK_THRESHOLD) p.staminaLocked = false;
+  }
+
+  // torch: burns through its battery's 30 seconds while switched on, then
+  // the battery is spent (wasted) and the torch goes dark until a fresh
+  // one is built at the anvil.
+  if(p.torchOn){
+    p.torchSeconds -= dt;
+    if(p.torchSeconds <= 0){
+      p.torchSeconds = 0;
+      p.torchOn = false;
+      toast('The torch battery died and is now waste.');
+    }
+  }
+
+  const speedNow = p.speed * (sprinting ? 1.6 : 1);
+
+  if(moving){
+    let len=Math.hypot(moveX,moveZ); moveX/=len; moveZ/=len;
+    p.x += moveX*speedNow*dt;
+    p.z += moveZ*speedNow*dt;
+    p.x = clamp(p.x, -WORLD_HALF_X, WORLD_HALF_X);
+    p.z = clamp(p.z, -WORLD_HALF_Z, WORLD_HALF_Z);
+    let targetFacing = Math.atan2(moveX,moveZ);
+    p.facing = lerpAngle(p.facing, targetFacing, 0.25);
+  }
+  p.currentSpeed = moving ? speedNow : 0;
+  p.maxSpeed = p.speed * 1.6;
+  p.walkT += (moving?dt*(sprinting?12:8):0);
+  animateWalk(world.playerMesh, p.walkT, moving);
+
+  // animals wander peacefully and take a few calm steps away if the player gets close
+  // (kept short/slow on purpose so they stay huntable instead of sprinting off-map)
+  world.animals.forEach(a=>{
+    a.wanderT -= dt;
+    const d = flatDist(a,p);
+    if(d < SPOOK_RADIUS){
+      // spook away from the player, but only a normal, catchable amount
+      const ang = Math.atan2(a.x-p.x, a.z-p.z);
+      const speed = SPOOK_SPEED[a.type];
+      a.vx = Math.sin(ang)*speed; a.vz = Math.cos(ang)*speed;
+      a.wanderT = 0.4;
+      if(!world.player.animalsSeen.has(a.id)){
+        world.player.animalsSeen.add(a.id);
+        updateHUD();
+      }
+    } else if(a.wanderT<=0){
+      a.wanderT = 1.5+Math.random()*2;
+      let speed = WANDER_SPEED[a.type];
+      let ang = Math.random()*Math.PI*2;
+      a.vx = Math.sin(ang)*speed; a.vz = Math.cos(ang)*speed;
+    }
+    a.x += a.vx*dt; a.z += a.vz*dt;
+    a.x = clamp(a.x,-WORLD_HALF_X,WORLD_HALF_X);
+    a.z = clamp(a.z,-WORLD_HALF_Z,WORLD_HALF_Z);
+    if(a.vx!==0||a.vz!==0) a.facing = lerpAngle(a.facing, Math.atan2(a.vx,a.vz), 0.1);
+  });
+
+  // hunt hint — show when an animal or any hurtable monster (including the giant) is within range
+  const huntHint = UI.huntHint;
+  const huntRange = (p.gun && p.ammo>0) ? Math.max(GUN_RANGE, TARGET_RANGE, SETTINGS.spearRange) : SETTINGS.spearRange;
+  let nearAnimal = world.animals.some(a=>flatDist(a,p) < huntRange) || world.monsters.some(m=>flatDist(m,p) < huntRange);
+  huntHint.style.display = nearAnimal ? 'block' : 'none';
+
+  // giant proximity warning — flashing, urgent, and overrides other hints.
+  // it fires the moment you step outside the campfire boundary at night, since
+  // that's exactly when the giant locks onto you regardless of distance.
+  const giantWarning = UI.giantWarning;
+  if(world.giant){
+    const gDist = flatDist(world.giant,p);
+    const outsideCamp = flatDist(p, world.fire) > SETTINGS.fireWarmRadius;
+    if(outsideCamp || gDist < SETTINGS.GIANT_DETECT_RADIUS){
+      giantWarning.style.display = 'block';
+      giantWarning.textContent = gDist < SETTINGS.GIANT_ATTACK_RANGE*2.2 ? 'IT\'S RIGHT BEHIND YOU — GET TO THE FIRE!' : 'THE GIANT IS HUNTING YOU — RUN FOR THE FIRE!';
+      const pulse = 0.55+0.45*Math.sin(performance.now()*0.012);
+      giantWarning.style.opacity = pulse.toFixed(2);
+    } else giantWarning.style.display = 'none';
+  } else giantWarning.style.display = 'none';
+
+  // big boss-style giant health bar, up top — visible any time the giant exists
+  const ghb = UI.giantHealthBar;
+  if(world.giant){
+    ghb.classList.add('show');
+    const frac = clamp(world.giant.hp/SETTINGS.GIANT_HP, 0, 1);
+    UI.ghbFill.style.width = (frac*100)+'%';
+    UI.ghbFill.style.background = frac>0.5
+      ? 'linear-gradient(90deg,#ff3020,#ff7a3a)'
+      : (frac>0.2 ? 'linear-gradient(90deg,#c9251a,#e2691a)' : 'linear-gradient(90deg,#6a0f0a,#a01a10)');
+  } else {
+    ghb.classList.remove('show');
+  }
+
+
+  // scrap pickup — walk near a piece and it's collected into your sack automatically
+  world.scraps.forEach(s=>{
+    if(s.collected) return;
+    if(flatDist(s,p) < SCRAP_PICKUP_RANGE){
+      s.collected = true;
+      scene.remove(s.mesh);
+      disposeObject3D(s.mesh);
+      p.scrap += 1;
+      toast('Collected scrap +1 (Scrap: '+p.scrap+')');
+      updateHUD();
+      // the forest keeps producing scrap so it never runs dry
+      setTimeout(()=>{
+        if(world && world.spawnScrap) world.spawnScrap(1);
+      }, SCRAP_RESPAWN_TIME*1000);
+    }
+  });
+
+  // the key — sitting in the monster den, guarded, one and only
+  if(!world.key.collected && flatDist(world.key,p) < KEY_PICKUP_RANGE){
+    world.key.collected = true;
+    scene.remove(world.key.mesh);
+    p.hasKey = true;
+    toast('You grabbed the key! Now get it to the exit door.');
+    updateHUD();
+  }
+
+  // door hint — only shown once you're close enough to matter
+  const keyHint = UI.keyHint;
+  keyHint.style.display = (!world.key.collected && flatDist(world.key,p) < KEY_PICKUP_RANGE+3) ? 'block' : 'none';
+  const doorHint = UI.doorHint;
+  if(flatDist(world.door,p) <= DOOR_RANGE){
+    doorHint.style.display = 'block';
+    const freedCount = world.jails.filter(j=>j.freed).length;
+    doorHint.textContent = world.door.opened ? 'The door is open — you escaped!' :
+      (!p.hasKey ? 'The door is locked — bring the key from the monster den' :
+        (freedCount<world.jails.length ? 'The door is locked — free both friends first ('+freedCount+'/'+world.jails.length+')' :
+          'Press E to unlock the door and escape'));
+  } else doorHint.style.display = 'none';
+
+  // friend rescue hint — shown near a still-caged friend
+  const friendHint = UI.friendHint;
+  const nearJail = world.jails.find(j=>!j.freed && flatDist(j,p) < SETTINGS.FRIEND_RESCUE_RANGE+3);
+  friendHint.style.display = nearJail ? 'block' : 'none';
+  if(nearJail){
+    friendHint.textContent = nearJail.cleared
+      ? 'Press E to free your friend'
+      : 'Defeat all the guards first ('+nearJail.guardsAlive+' left)';
+  }
+
+  // broken anvil pieces — walk near one and it's collected automatically
+  world.anvilPiecesWorld.forEach(a=>{
+    if(a.collected) return;
+    if(flatDist(a,p) < PIECE_PICKUP_RANGE){
+      a.collected = true;
+      scene.remove(a.mesh);
+      disposeObject3D(a.mesh);
+      p.anvilPieces += 1;
+      toast('Found a broken anvil piece! ('+p.anvilPieces+'/'+SETTINGS.ANVIL_PIECE_COUNT+')');
+      updateHUD();
+    }
+  });
+
+  // anvil hint / upgrade station — only one shows at a time, whichever is relevant
+  const anvilHint = UI.anvilHint, aup = UI.anvilUpgradePanel;
+  const nearAnvil = flatDist(world.anvil,p) <= SETTINGS.ANVIL_INTERACT_RANGE;
+  if(nearAnvil && !world.anvil.repaired){
+    anvilHint.style.display = 'block';
+    anvilHint.textContent = 'Broken anvil — press E to fix it ('+p.anvilPieces+'/'+SETTINGS.ANVIL_PIECE_COUNT+' pieces)';
+    aup.classList.remove('show');
+  } else if(nearAnvil && world.anvil.repaired){
+    anvilHint.style.display = 'none';
+    aup.classList.add('show');
+    UI.aupGun.textContent = p.gun ? 'have it' : '';
+    UI.aupAmmo.textContent = '';
+    UI.aupAxe.textContent = p.axeUpgraded ? 'upgraded' : '';
+    UI.aupSpear.textContent = p.spearUpgraded ? 'upgraded' : '';
+    const j1 = world.jails.find(j=>j.id===1), j2 = world.jails.find(j=>j.id===2);
+    UI.aupFriend1.textContent = j1 && j1.friendUpgraded ? 'upgraded' : (j1 && j1.freed ? '' : 'not freed');
+    UI.aupFriend2.textContent = j2 && j2.friendUpgraded ? 'upgraded' : (j2 && j2.freed ? '' : 'not freed');
+    UI.aupTorch.textContent = p.torchBatteries>0 ? (p.torchBatteries+' owned') : '';
+  } else {
+    anvilHint.style.display = 'none';
+    aup.classList.remove('show');
+  }
+
+  // growing saplings mature into full trees over time, and every tree's
+  // foliage sways gently in the wind for a more natural, living forest
+  const windT = performance.now()*0.001;
+  world.trees.forEach((t,idx)=>{
+    if(t.growing){
+      t.growT += dt;
+      const growPct = clamp(t.growT/SETTINGS.plantGrowTime, 0, 1);
+      const s = 0.12 + growPct*0.88;
+      t.mesh.scale.set(s,s,s);
+      if(growPct >= 1){
+        t.growing = false;
+        toast('A planted sapling has grown into a full tree!');
+      }
+    }
+    if(!t.cut && t.mesh.userData.foliage){
+      const sway = Math.sin(windT*0.8 + idx*1.7)*0.035;
+      t.mesh.userData.foliage.forEach(f=>{ f.rotation.z = sway; f.rotation.x = sway*0.6; });
+    }
+  });
+
+  // freed friends chop trees, feed the fire, and plant saplings on their own
+  updateFriends(dt);
+
+  // chop hint
+  const chopHint = UI.chopHint;
+  let nearTree = world.trees.some(t=>!t.cut && !t.growing && flatDist(t,p) < SETTINGS.chopRange+t.r);
+  chopHint.style.display = nearTree ? 'block' : 'none';
+
+  // campfire: burns down over time, warms the player when lit and nearby
+  world.fire.fuel = clamp(world.fire.fuel - SETTINGS.fireDecayRate*dt, 0, 100);
+  const nearFire = flatDist(world.fire,p) <= SETTINGS.fireWarmRadius;
+  if(nearFire){
+    // inside the fire's circle, health rises or falls depending on how strong the fire is:
+    // a roaring fire (100% fuel) heals steadily, a dying fire (near 0%) barely helps at all,
+    // a fire under ~50% fuel isn't warm enough and health still drifts down.
+    const warmthFactor = (world.fire.fuel/100)*2 - 1; // -1 (fire out) .. +1 (full fire)
+    p.health = clamp(p.health + warmthFactor*SETTINGS.healthChangeRate*dt, 0, 100);
+  } else {
+    p.health = clamp(p.health - SETTINGS.healthChangeRate*dt, 0, 100);
+  }
+
+  // --- safe-zone boundary: the circle only holds while the fire has fuel ---
+  const fireIsSafe = world.fire.fuel > 0;
+  if(world.fire.wasSafe && !fireIsSafe){
+    toast('The fire has gone out — the boundary is down!');
+  } else if(!world.fire.wasSafe && fireIsSafe){
+    toast('The flames are back — the boundary is holding again.');
+  }
+  world.fire.wasSafe = fireIsSafe;
+
+  // --- day/night cycle ---
+  world.dayTime = (world.dayTime + dt) % SETTINGS.dayNightCycle;
+  const nightFactor = (1 - Math.cos((world.dayTime/SETTINGS.dayNightCycle)*Math.PI*2)) / 2; // 0 = full day, 1 = full night
+  const isNight = nightFactor > 0.5;
+  if(isNight && !world.wasNight){
+    const nightNumber = world.daysSurvived;
+    const isWarNight = nightNumber >= 3 && nightNumber % 2 === 1;
+    world.isWarNight = isWarNight;
+    if(isWarNight){
+      const zombieCount = SETTINGS.WAR_NIGHT_ZOMBIE_COUNT_MIN + Math.floor(Math.random()*(SETTINGS.WAR_NIGHT_ZOMBIE_COUNT_MAX - SETTINGS.WAR_NIGHT_ZOMBIE_COUNT_MIN + 1));
+      toast('WAR NIGHT — '+zombieCount+' zombies are coming! Fight them together or hold the fire!');
+      for(let i=0;i<zombieCount;i++) world.spawnZombie();
+    } else {
+      toast('Night falls — more monsters emerge, and something huge stirs in the dark.');
+    }
+    for(let i=0;i<NIGHT_SPAWN_COUNT;i++) world.spawnNightMonster();
+    world.spawnGiant();
+    playGiantCutscene();
+  } else if(!isNight && world.wasNight){
+    toast('Dawn breaks — the forest calms.');
+    world.despawnNightMonsters();
+    world.isWarNight = false;
+    world.daysSurvived += 1;
+  }
+  world.wasNight = isNight;
+
+  // time left in the current day/night phase, for the HUD countdown —
+  // day runs from 0-0.25 and 0.75-1.0 of the cycle, night from 0.25-0.75
+  {
+    const cycle = SETTINGS.dayNightCycle;
+    const dayEnd = 0.25*cycle, nightEnd = 0.75*cycle;
+    const t = world.dayTime;
+    let timeLeft;
+    if(t < dayEnd){ timeLeft = dayEnd - t; }
+    else if(t < nightEnd){ timeLeft = nightEnd - t; }
+    else { timeLeft = (cycle - t) + dayEnd; }
+    world.phaseTimeLeft = timeLeft;
+    world.currentlyNight = isNight;
+  }
+
+  const dayBg = 0x8fbf8a, nightBg = 0x060810;
+  const bgColor = new THREE.Color(dayBg).lerp(new THREE.Color(nightBg), nightFactor);
+  scene.background.copy(bgColor);
+  scene.fog.color.copy(bgColor);
+  hemiLight.intensity = 0.9 - nightFactor*0.65;
+  sunLight.intensity = 1.0 - nightFactor*0.88;
+  sunLight.color.copy(new THREE.Color(0xfff2d0).lerp(new THREE.Color(0x8fa0ff), nightFactor));
+  ambientLight.intensity = 0.4 - nightFactor*0.28;
+
+  // sun/moon arc across the sky, tied to the same clock that drives day/night —
+  // the sun rides high at midday, sinks to the horizon at dusk/dawn, and the
+  // moon rises opposite it once night falls. The shadow-casting light follows
+  // the player so shadow resolution stays sharp without a huge frustum.
+  {
+    const dayFrac = world.dayTime / SETTINGS.dayNightCycle;
+    const sunAngle = dayFrac * Math.PI * 2;
+    const sunDir = new THREE.Vector3(Math.sin(sunAngle), Math.cos(sunAngle), 0.35).normalize();
+    const px = world.player.x, pz = world.player.z;
+    sunLight.position.set(px + sunDir.x*140, Math.max(sunDir.y,0.08)*140 + 20, pz + sunDir.z*140);
+    sunLight.target.position.set(px, 0, pz);
+    sunLight.target.updateMatrixWorld();
+
+    if(skyDome) skyDome.material.color.copy(bgColor);
+    if(stars) stars.material.opacity = clamp((nightFactor-0.35)*1.5, 0, 0.9);
+    if(sunDisc){
+      sunDisc.position.copy(camera.position).addScaledVector(sunDir, 800);
+      sunDisc.lookAt(camera.position);
+      sunDisc.visible = sunDir.y > -0.15;
+      sunDisc.material.opacity = clamp((sunDir.y+0.15)/0.3, 0, 1) * (1-nightFactor*0.7);
+    }
+    if(moonDisc){
+      const moonDir = sunDir.clone().negate();
+      moonDisc.position.copy(camera.position).addScaledVector(moonDir, 800);
+      moonDisc.lookAt(camera.position);
+      moonDisc.visible = moonDir.y > -0.15;
+      moonDisc.material.opacity = clamp((moonDir.y+0.15)/0.3, 0, 1) * nightFactor;
+    }
+  }
+
+  // pushes a monster back outside the firelit boundary if it ends up inside it.
+  // called both before AND after each monster moves this frame — movement alone
+  // (especially a fast chase) can carry a monster past the ring in a single
+  // frame, and if we only corrected it at the start of the *next* frame, that
+  // gave it one free frame standing inside camp next to the player, close
+  // enough to land a hit. Clamping right after movement closes that gap.
+  const enforceBoundary = (m)=>{
+    if(!fireIsSafe) return;
+    const d = flatDist(m, world.fire);
+    if(d < SETTINGS.fireWarmRadius+1){
+      const ang = Math.atan2(m.x-world.fire.x, m.z-world.fire.z) || Math.random()*Math.PI*2;
+      m.x = world.fire.x + Math.sin(ang)*(SETTINGS.fireWarmRadius+1.5);
+      m.z = world.fire.z + Math.cos(ang)*(SETTINGS.fireWarmRadius+1.5);
+    }
+  };
+
+  // --- monsters: out both day and night, but only hunt in the dark ---
+  // by day they keep clear of you and back off if you approach; once night
+  // falls (and only if the fire boundary is down) they'll close in and attack.
+  world.monsters.forEach(m=>{
+    const distToCamp = flatDist(m, world.fire);
+    if(fireIsSafe && distToCamp < SETTINGS.fireWarmRadius+1){
+      // the boundary pushes anything that ends up inside it back out, day or night
+      const ang = Math.atan2(m.x-world.fire.x, m.z-world.fire.z) || Math.random()*Math.PI*2;
+      m.x = world.fire.x + Math.sin(ang)*(SETTINGS.fireWarmRadius+1.5);
+      m.z = world.fire.z + Math.cos(ang)*(SETTINGS.fireWarmRadius+1.5);
+    }
+
+    const distToPlayer = flatDist(m,p);
+
+    // torch is lit: every monster except the giant bolts away from the
+    // player rather than hunting, wandering, or attacking this frame.
+    if(!m.giant && p.torchOn && distToPlayer < SETTINGS.TORCH_FLEE_RADIUS){
+      const ang = Math.atan2(m.x-p.x, m.z-p.z) || Math.random()*Math.PI*2;
+      m.vx = Math.sin(ang)*SETTINGS.TORCH_FLEE_SPEED; m.vz = Math.cos(ang)*SETTINGS.TORCH_FLEE_SPEED;
+      m.x += m.vx*dt; m.z += m.vz*dt;
+      m.x = clamp(m.x,-WORLD_HALF_X,WORLD_HALF_X);
+      m.z = clamp(m.z,-WORLD_HALF_Z,WORLD_HALF_Z);
+      enforceBoundary(m);
+      if(m.vx!==0||m.vz!==0) m.facing = lerpAngle(m.facing, Math.atan2(m.vx,m.vz), 0.1);
+      m.chaseTime = 0;
+      m.wanderT = 0.4;
+      return;
+    }
+
+    if(m.giant){
+      // the giant only exists at night and always hunts — the boundary
+      // push-back above already keeps it from ever reaching the campfire.
+      // the moment you step outside the safe zone it knows exactly where
+      // you are and comes straight for you, regardless of distance.
+      const playerOutsideCamp = flatDist(p, world.fire) > SETTINGS.fireWarmRadius;
+      const hunting = playerOutsideCamp || distToPlayer < SETTINGS.GIANT_DETECT_RADIUS;
+      if(hunting){
+        const ang = Math.atan2(p.x-m.x, p.z-m.z);
+        m.vx = Math.sin(ang)*SETTINGS.GIANT_CHASE_SPEED; m.vz = Math.cos(ang)*SETTINGS.GIANT_CHASE_SPEED;
+      } else {
+        m.wanderT -= dt;
+        if(m.wanderT<=0){
+          m.wanderT = 3+Math.random()*3;
+          const ang = Math.random()*Math.PI*2;
+          m.vx = Math.sin(ang)*SETTINGS.GIANT_WANDER_SPEED; m.vz = Math.cos(ang)*SETTINGS.GIANT_WANDER_SPEED;
+        }
+      }
+      m.x += m.vx*dt; m.z += m.vz*dt;
+      m.x = clamp(m.x,-WORLD_HALF_X,WORLD_HALF_X);
+      m.z = clamp(m.z,-WORLD_HALF_Z,WORLD_HALF_Z);
+      enforceBoundary(m);
+      if(m.vx!==0||m.vz!==0) m.facing = lerpAngle(m.facing, Math.atan2(m.vx,m.vz), 0.05);
+      // discrete hits rather than continuous drain — 5 hits kills a full-health player
+      m.hitCooldown = (m.hitCooldown||0) - dt;
+      if(distToPlayer < SETTINGS.GIANT_ATTACK_RANGE && m.hitCooldown<=0){
+        p.health = clamp(p.health - SETTINGS.GIANT_HIT_DAMAGE, 0, 100);
+        m.hitCooldown = SETTINGS.GIANT_HIT_INTERVAL;
+        toast('The giant strikes you!');
+      }
+      // heartbeat-like pulse on its dread light — faster and hotter while hunting
+      if(m.mesh.userData.dreadLight){
+        const pulseSpeed = hunting ? 0.02 : 0.006;
+        const pulse = 0.6+0.4*Math.sin(performance.now()*pulseSpeed);
+        m.mesh.userData.dreadLight.intensity = (hunting?1.4:0.8)*pulse;
+      }
+      if(m.mesh.userData.eyeLight){
+        const eyePulse = 0.7+0.3*Math.sin(performance.now()*0.025);
+        m.mesh.userData.eyeLight.intensity = (hunting?2.8:2.0)*eyePulse;
+      }
+      return;
+    }
+    if(m.guard){
+      // den guards: aggressive day and night, but tethered near the den so
+      // the pack doesn't drain out across the whole map
+      if(distToPlayer < GUARD_DETECT_RADIUS){
+        const ang = Math.atan2(p.x-m.x, p.z-m.z);
+        m.vx = Math.sin(ang)*GUARD_CHASE_SPEED; m.vz = Math.cos(ang)*GUARD_CHASE_SPEED;
+      } else {
+        const distToHome = Math.hypot(m.x-m.homeX, m.z-m.homeZ);
+        m.wanderT -= dt;
+        if(distToHome > GUARD_ROAM_RADIUS){
+          const ang = Math.atan2(m.homeX-m.x, m.homeZ-m.z);
+          m.vx = Math.sin(ang)*GUARD_WANDER_SPEED; m.vz = Math.cos(ang)*GUARD_WANDER_SPEED;
+        } else if(m.wanderT<=0){
+          m.wanderT = 2+Math.random()*3;
+          const ang = Math.random()*Math.PI*2;
+          m.vx = Math.sin(ang)*GUARD_WANDER_SPEED; m.vz = Math.cos(ang)*GUARD_WANDER_SPEED;
+        }
+      }
+      m.x += m.vx*dt; m.z += m.vz*dt;
+      m.x = clamp(m.x,-WORLD_HALF_X,WORLD_HALF_X);
+      m.z = clamp(m.z,-WORLD_HALF_Z,WORLD_HALF_Z);
+      enforceBoundary(m);
+      if(m.vx!==0||m.vz!==0) m.facing = lerpAngle(m.facing, Math.atan2(m.vx,m.vz), 0.08);
+      if(distToPlayer < GUARD_ATTACK_RANGE){
+        p.health = clamp(p.health - GUARD_DAMAGE_PER_SEC*dt, 0, 100);
+      }
+      return;
+    }
+    if(!isNight){
+      // daytime: wary — keeps its distance and backs off if you get close,
+      // but if you crowd it right up into attack range, it'll strike back
+      if(distToPlayer < SETTINGS.monsterAttackRange){
+        m.vx = 0; m.vz = 0;
+      } else if(distToPlayer < SETTINGS.monsterFleeRadius){
+        const ang = Math.atan2(m.x-p.x, m.z-p.z);
+        m.vx = Math.sin(ang)*SETTINGS.monsterFleeSpeed; m.vz = Math.cos(ang)*SETTINGS.monsterFleeSpeed;
+        m.wanderT = 0.6;
+      } else {
+        m.wanderT -= dt;
+        if(m.wanderT<=0){
+          m.wanderT = 2+Math.random()*3;
+          const ang = Math.random()*Math.PI*2;
+          m.vx = Math.sin(ang)*SETTINGS.monsterWanderSpeed; m.vz = Math.cos(ang)*SETTINGS.monsterWanderSpeed;
+        }
+      }
+    } else {
+      // night — the fire boundary no longer protects you from being seen;
+      // if a monster spots you (you're within its detection radius) it
+      // will hunt you down regardless of whether the fire is lit
+      if(distToPlayer < SETTINGS.monsterDetectRadius){
+        // the longer it's been on your tail, the faster it gets — starts
+        // matching your speed, then keeps ramping up so a long chase gets
+        // more and more dangerous, capped so it stays beatable
+        m.chaseTime = (m.chaseTime||0) + dt;
+        const ramp = Math.min(m.chaseTime * 0.6, 9.0); // up to 10x player speed over ~15s
+        const chaseSpeed = p.speed * (1 + ramp);
+        const ang = Math.atan2(p.x-m.x, p.z-m.z);
+        m.vx = Math.sin(ang)*chaseSpeed; m.vz = Math.cos(ang)*chaseSpeed;
+      } else {
+        m.chaseTime = 0;
+        m.wanderT -= dt;
+        if(m.wanderT<=0){
+          m.wanderT = 2+Math.random()*3;
+          const ang = Math.random()*Math.PI*2;
+          m.vx = Math.sin(ang)*SETTINGS.monsterWanderSpeed; m.vz = Math.cos(ang)*SETTINGS.monsterWanderSpeed;
+        }
+      }
+    }
+
+    m.x += m.vx*dt; m.z += m.vz*dt;
+    m.x = clamp(m.x,-WORLD_HALF_X,WORLD_HALF_X);
+    m.z = clamp(m.z,-WORLD_HALF_Z,WORLD_HALF_Z);
+    enforceBoundary(m);
+    if(m.vx!==0||m.vz!==0) m.facing = lerpAngle(m.facing, Math.atan2(m.vx,m.vz), 0.08);
+
+    if(distToPlayer < SETTINGS.monsterAttackRange){
+      p.health = clamp(p.health - SETTINGS.monsterDamagePerSec*dt, 0, 100);
+    }
+  });
+
+  // health hit zero — game over
+  if(p.health <= 0 && !p.dead){
+    let reason = 'The cold and dark finally caught up with you.';
+    let byMonster = false;
+    if(world.giant && flatDist(world.giant,p) < SETTINGS.GIANT_ATTACK_RANGE+0.5){
+      reason = 'The giant crushed you in the dark.';
+      byMonster = true;
+    } else if(world.monsters.some(m=>m.guard && flatDist(m,p) < GUARD_ATTACK_RANGE+0.5)){
+      reason = 'The den guards tore you apart.';
+      byMonster = true;
+    } else if(!fireIsSafe && isNight && world.monsters.some(m=>!m.guard && flatDist(m,p) < SETTINGS.monsterAttackRange+0.5)){
+      reason = 'A monster caught you in the dark.';
+      byMonster = true;
+    }
+    die(reason, byMonster);
+    return;
+  }
+
+  // boundary ring glows warm while safe, and dims to a warning red once the fire is out
+  const bRing = world.boundaryMesh.userData.ring, bWall = world.boundaryMesh.userData.wall;
+  if(fireIsSafe){
+    const pulse = 0.7+0.3*Math.sin(performance.now()*0.003);
+    bRing.material.color.setHex(0xffa030); bRing.material.opacity = 0.35+0.45*pulse;
+    bWall.material.color.setHex(0xffa030); bWall.material.opacity = 0.05+0.03*pulse;
+  } else {
+    const pulse = 0.5+0.5*Math.sin(performance.now()*0.006);
+    bRing.material.color.setHex(0x8a1414); bRing.material.opacity = 0.15+0.2*pulse;
+    bWall.material.color.setHex(0x8a1414); bWall.material.opacity = 0.02;
+  }
+
+  const fuelPct = world.fire.fuel/100;
+  const flame = world.fireMesh.userData.flame, flame2 = world.fireMesh.userData.flame2,
+        flame3 = world.fireMesh.userData.flame3, light = world.fireMesh.userData.light;
+  const flicker = 0.85 + Math.sin(performance.now()*0.01)*0.15;
+  const flicker2 = 0.85 + Math.sin(performance.now()*0.013+1.3)*0.15;
+  flame.scale.set(1, (0.15+0.85*fuelPct)*flicker, 1);
+  flame2.scale.set(1, (0.15+0.85*fuelPct)*flicker2, 1);
+  flame3.scale.set(1, (0.15+0.85*fuelPct)*flicker, 1);
+  flame.visible = flame2.visible = flame3.visible = fuelPct > 0.01;
+  light.intensity = 1.4*fuelPct*flicker;
+
+  // rising embers
+  const embArr = world.fireMesh.userData.emberPoints.geometry.attributes.position.array;
+  const embData = world.fireMesh.userData.emberData;
+  for(let i=0;i<embData.length;i++){
+    const e = embData[i];
+    e.y += e.s*dt;
+    if(e.y>1.8){ e.y=0.2; e.a=Math.random()*Math.PI*2; e.r=Math.random()*0.3; }
+    embArr[i*3]   = Math.cos(e.a+e.y)*e.r;
+    embArr[i*3+1] = 0.5+e.y;
+    embArr[i*3+2] = Math.sin(e.a+e.y)*e.r;
+  }
+  world.fireMesh.userData.emberPoints.geometry.attributes.position.needsUpdate = true;
+  world.fireMesh.userData.emberPoints.material.opacity = 0.25+0.65*fuelPct;
+  world.fireMesh.userData.emberPoints.visible = fuelPct > 0.02;
+
+  const fireHint = UI.fireHint;
+  if(flatDist(world.fire,p) <= FIRE_FEED_RANGE){
+    fireHint.style.display = 'block';
+    fireHint.textContent = world.fire.fuel>=100 ? 'The fire is well fed.' : 'Press F to feed the fire ('+Math.round(world.fire.fuel)+'% · Wood: '+p.wood+')';
+  } else fireHint.style.display = 'none';
+
+  updateHUD();
+  syncMeshes();
+}
+
+function syncMeshes(){
+  const p = world.player;
+  world.playerMesh.position.set(p.x,0,p.z);
+  world.playerMesh.rotation.y = p.facing;
+  world.animals.forEach(a=>{ a.mesh.position.set(a.x,0,a.z); a.mesh.rotation.y = a.facing; });
+  world.monsters.forEach(m=>{ m.mesh.position.set(m.x,0,m.z); m.mesh.rotation.y = m.facing; });
+}
+
+/* ============================================================
+   CAMERA
+============================================================ */
+function updateCamera(){
+  const p = world.player;
+  if(viewMode==='first'){
+    const eyeY = 1.75;
+    let bobY = 0, bobX = 0;
+    if(p.currentSpeed>0){
+      const bobSpeed = p.currentSpeed>p.speed*1.1 ? 12 : 8;
+      const bt = (p.walkT||0);
+      bobY = Math.abs(Math.sin(bt))*0.045;
+      bobX = Math.sin(bt*0.5)*0.02;
+    }
+    camera.position.set(p.x+bobX, eyeY+bobY, p.z);
+    const dirX = -Math.sin(camYaw)*Math.cos(fpPitch);
+    const dirZ = -Math.cos(camYaw)*Math.cos(fpPitch);
+    const dirY = Math.sin(fpPitch);
+    camera.lookAt(p.x+dirX, eyeY+bobY+dirY, p.z+dirZ);
+  } else {
+    const cx = p.x + Math.sin(camYaw)*Math.cos(camPitch)*camDist;
+    const cz = p.z + Math.cos(camYaw)*Math.cos(camPitch)*camDist;
+    const cy = 1.4 + Math.sin(camPitch)*camDist;
+    camera.position.set(cx,cy,cz);
+    camera.lookAt(p.x, 1.4, p.z);
+  }
+  if(cutsceneActive){
+    camera.position.x += (Math.random()-0.5)*0.15;
+    camera.position.y += (Math.random()-0.5)*0.1;
+    camera.position.z += (Math.random()-0.5)*0.15;
+  }
+}
+
+/* ============================================================
+   HUD
+============================================================ */
+function updateHUD(){
+  UI.woodCount.textContent = world.player.wood;
+  UI.saplingCount.textContent = world.player.saplings;
+  UI.scrapCount.textContent = world.player.scrap;
+  UI.boneCount.textContent = world.player.bones;
+  UI.rabbitFootCount.textContent = world.player.rabbitFoot;
+  UI.sheepWoolCount.textContent = world.player.sheepWool;
+  UI.deerSkinCount.textContent = world.player.deerSkin;
+  UI.animalCount.textContent = world.player.animalsSeen.size;
+  UI.huntedCount.textContent = world.player.hunted;
+  UI.anvilPieceCount.textContent = world.player.anvilPieces;
+  UI.friendsFreedCount.textContent = world.jails ? world.jails.filter(j=>j.freed).length : 0;
+  UI.gunStatus.textContent = world.player.gun ? 'have it!' : 'none';
+  UI.gunStatus.style.color = world.player.gun ? '#e2c469' : '';
+  UI.ammoCount.textContent = world.player.ammo;
+  UI.axeStatus.textContent = world.player.axeUpgraded ? 'upgraded' : 'basic';
+  UI.axeStatus.style.color = world.player.axeUpgraded ? '#7ee27e' : '';
+  UI.spearStatus.textContent = world.player.spearUpgraded ? 'upgraded' : 'basic';
+  UI.spearStatus.style.color = world.player.spearUpgraded ? '#7ee27e' : '';
+  const j1 = world.jails ? world.jails.find(j=>j.id===1) : null, j2 = world.jails ? world.jails.find(j=>j.id===2) : null;
+  UI.friend1Status.textContent = j1 ? (j1.friendUpgraded ? 'upgraded' : (j1.freed ? 'basic' : 'not freed')) : 'not freed';
+  UI.friend1Status.style.color = j1 && j1.friendUpgraded ? '#7ee27e' : '';
+  UI.friend2Status.textContent = j2 ? (j2.friendUpgraded ? 'upgraded' : (j2.freed ? 'basic' : 'not freed')) : 'not freed';
+  UI.friend2Status.style.color = j2 && j2.friendUpgraded ? '#7ee27e' : '';
+
+  UI.dayCount.textContent = world.daysSurvived;
+  const phaseLabel = UI.phaseLabel;
+  const phaseTimer = UI.phaseTimer;
+  const isNight = !!world.currentlyNight;
+  phaseLabel.textContent = isNight ? (world.isWarNight ? 'War Night' : 'Night') : 'Day';
+  const secsLeft = Math.max(0, Math.ceil(world.phaseTimeLeft||0));
+  const mm = Math.floor(secsLeft/60), ss = secsLeft%60;
+  phaseTimer.textContent = mm+':'+(ss<10?'0':'')+ss;
+  phaseTimer.style.color = isNight ? '#e2695a' : '#7ee27e';
+
+  const keyStatus = UI.keyStatus;
+  if(world.door.opened){ keyStatus.textContent = 'escaped!'; keyStatus.style.color = '#7ad0ff'; }
+  else if(world.player.hasKey){ keyStatus.textContent = 'have it!'; keyStatus.style.color = '#e2c469'; }
+  else { keyStatus.textContent = 'not found'; keyStatus.style.color = ''; }
+
+  const boundaryStatus = UI.boundaryStatus;
+  const safe = world.fire.fuel > 0;
+  boundaryStatus.textContent = safe ? 'SAFE' : 'DOWN';
+  boundaryStatus.style.color = safe ? '#7ee27e' : '#e2361a';
+
+  const hp = world.player.health;
+  const healthFill = UI.healthFill;
+  healthFill.style.width = clamp(hp,0,100)+'%';
+  healthFill.style.background = hp>50
+    ? 'linear-gradient(90deg,#7ee27e,#3fae4a)'
+    : (hp>25 ? 'linear-gradient(90deg,#e2a33c,#e2c469)' : 'linear-gradient(90deg,#a02a1a,#e2361a)');
+
+  const fuel = world.fire.fuel;
+  const fireFill = UI.fireFill;
+  fireFill.style.width = clamp(fuel,0,100)+'%';
+  fireFill.style.background = fuel>50
+    ? 'linear-gradient(90deg,#e2a33c,#f2c469)'
+    : (fuel>15 ? 'linear-gradient(90deg,#c97a2a,#e2a33c)' : 'linear-gradient(90deg,#7a2a1a,#c93a1a)');
+
+  const stamina = world.player.stamina!==undefined ? world.player.stamina : 100;
+  const speedFill = UI.speedFill;
+  speedFill.style.width = clamp(stamina,0,100)+'%';
+  const locked = !!world.player.staminaLocked;
+  speedFill.style.background = locked
+    ? 'linear-gradient(90deg,#a02a1a,#e2361a)'
+    : (stamina>50
+      ? 'linear-gradient(90deg,#6fb8e2,#9fe2e2)'
+      : (stamina>25 ? 'linear-gradient(90deg,#c97a2a,#e2a33c)' : 'linear-gradient(90deg,#a02a1a,#e2695a)'));
+
+  const cooldownFill = UI.cooldownFill;
+  const cdFrac = huntCooldownMax>0 ? clamp(1 - (huntCooldown/huntCooldownMax), 0, 1) : 1;
+  cooldownFill.style.width = (cdFrac*100)+'%';
+  cooldownFill.style.background = cdFrac>=1
+    ? 'linear-gradient(90deg,#7ee27e,#3fae4a)'
+    : 'linear-gradient(90deg,#e2695a,#e2a33c)';
+
+  UI.torchBatteryCount.textContent = world.player.torchBatteries;
+  const torchSecs = world.player.torchSeconds || 0;
+  const torchFrac = clamp(torchSecs/SETTINGS.TORCH_MAX_SECONDS, 0, 1);
+  const torchFill = UI.torchFill;
+  torchFill.style.width = (torchFrac*100)+'%';
+  torchFill.style.background = world.player.torchOn
+    ? (torchFrac>0.3 ? 'linear-gradient(90deg,#f2c469,#fff2b0)' : 'linear-gradient(90deg,#e2695a,#f2c469)')
+    : 'linear-gradient(90deg,#555,#777)';
+}
+
+/* ============================================================
+   MAIN LOOP
+============================================================ */
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  let dt = Math.min(0.05, clock.getDelta());
+  if(!mapOpen && !cutsceneActive && !paused) update(dt);
+  updateCamera();
+  renderer.render(scene,camera);
+}
+
+/* ============================================================
+   BOOT
+============================================================ */
+initThree();
+initWorld();
+document.getElementById('loadingMsg').style.display='none';
+(function(){
+  const wel = document.getElementById('welcomeOverlay');
+  const btn = document.getElementById('welcomeStartBtn');
+  if(btn && wel){
+    btn.addEventListener('click', ()=>{
+      wel.classList.add('hide');
+      playIntroCutscene();
+    });
+  }
+})();
+(function(){
+  const dso = document.getElementById('deviceSelectOverlay');
+  const mobileBtn = document.getElementById('chooseMobileBtn');
+  const computerBtn = document.getElementById('chooseComputerBtn');
+  if(!dso) return;
+  const choose = (isMobile)=>{
+    if(isMobile){ document.body.classList.add('touch-enabled'); }
+    else { document.body.classList.remove('touch-enabled'); }
+    dso.classList.add('hide');
+  };
+  if(mobileBtn) mobileBtn.addEventListener('click', ()=>choose(true));
+  if(computerBtn) computerBtn.addEventListener('click', ()=>choose(false));
+})();
+camYaw = Math.PI; camPitch = 0.55; camDist = 9;
+updateHUD();
+setTimeout(()=>toast('Chop trees (E) for wood, spear animals (R), collect scrap, and keep the fire fed (F). Somewhere deep in the forest a monster den guards the only key to the exit door. Each night more monsters emerge, and a giant stalks the dark — it hits hard and moves fast, so run for the fire unless you\'re ready to fight it. Press M for the map.'), 500);
+animate();
+
+})();
+</script>
+</body>
+</html>
